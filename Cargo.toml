@@ -1,0 +1,21 @@
+[package]
+name = "progress_bot"
+version = "0.1.0"
+authors = ["ruiramos <rui@ometria.com>"]
+edition = "2018"
+
+[dependencies]
+rocket = "0.4.2"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+reqwest = "0.9.19"
+chrono = "0.4"
+diesel = { version = "1.0.0", features = ["postgres"] }
+postgres = { version = "0.15", features = ["with-chrono"] }
+
+[dependencies.rocket_contrib]
+version = "0.4.2"
+default-features = false
+features = ["json", "diesel_postgres_pool"]
+

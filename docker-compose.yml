@@ -1,0 +1,13 @@
+version: '2.1'
+
+services:
+  postgres:
+    image: postgres:11
+    restart: always
+    ports:
+     - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: password
+      POSTGRES_USER: diesel
+      POSTGRES_DB: diesel
+
