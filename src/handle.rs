@@ -1,5 +1,6 @@
 use crate::slack;
 use crate::{EventDetails, SlackConfig, Standup, StandupList, User, UserList, UserState};
+use chrono::Local;
 use rocket::State;
 use std::sync::{Arc, Mutex};
 
@@ -86,7 +87,14 @@ pub fn react_notification(
 
 pub fn share_standup(user: &User, standup: &Standup) {
     let msg = ":baguette_bread: Here's a fresh new standup for y'all:";
-    slack::send_standup_to_channel(user.channel.as_ref().unwrap(), msg, standup, user).unwrap();
+    slack::send_standup_to_channel(
+        user.channel.as_ref().unwrap(),
+        msg,
+        Local::now().timestamp(),
+        standup,
+        user,
+    )
+    .unwrap();
 }
 
 pub fn config(config: SlackConfig, users: State<Arc<Mutex<UserList>>>) {

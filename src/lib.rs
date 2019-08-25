@@ -142,27 +142,6 @@ impl Standup {
             blocker: None,
         }
     }
-
-    pub fn get_stage(&self) -> StandupStage {
-        if let Some(_) = self.blocker {
-            StandupStage::Complete
-        } else if let Some(_) = self.day {
-            StandupStage::Blocker
-        } else if let Some(_) = self.prev_day {
-            StandupStage::Today
-        } else {
-            StandupStage::PrevDay
-        }
-    }
-
-    pub fn add_content(&mut self, content: String) {
-        match self.get_stage() {
-            StandupStage::PrevDay => self.prev_day = Some(content),
-            StandupStage::Today => self.day = Some(content),
-            StandupStage::Blocker => self.blocker = Some(content),
-            _ => (),
-        }
-    }
 }
 
 #[derive(Debug)]

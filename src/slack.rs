@@ -30,6 +30,7 @@ pub fn send_message(message: String, channel: String) -> Result<(), Box<dyn std:
 pub fn send_standup_to_channel(
     channel: &str,
     message: &str,
+    ts: i64,
     standup: &Standup,
     user: &User,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -39,6 +40,8 @@ pub fn send_standup_to_channel(
             "pretext": message,
             "author_name": user.real_name.as_ref().unwrap_or(&user.username),
             "author_icon": user.avatar_url.as_ref().unwrap_or(&"".to_string()),
+            "footer": "@progress",
+            "ts": ts,
             "fields": [{
                 "title": "Yesterday:",
                 "value": standup.prev_day.as_ref().unwrap(),
