@@ -198,10 +198,18 @@ fn get_about_blocker_copy() -> String {
     format!(":three: Any blockers impacting your work?")
 }
 
-fn get_done_copy() -> String {
+fn get_done_copy(channel: &Option<String>) -> String {
+    let extra = match channel {
+        None => String::from(""),
+        Some(channel) => format!(
+            "Additionally, I've shared the standup notes to #{}",
+            channel //@TODO this is not che channel name
+        ),
+    };
+
     format!(
-        ":white_check_mark: *All done here!* \n\n Thank you, have a great day, talk to you {}.",
-        "tomorrow"
+        ":white_check_mark: *All done here!* {}\n\n Thank you, have a great day, talk to you {}.",
+        extra, "tomorrow"
     )
 }
 
