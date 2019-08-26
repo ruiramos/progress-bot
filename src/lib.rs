@@ -113,10 +113,7 @@ impl UserList {
     }
 
     pub fn find_user(&mut self, username: &str) -> Option<&mut User> {
-        self.list
-            .iter_mut()
-            .filter(|u| u.username == username)
-            .next()
+        self.list.iter_mut().find(|u| u.username == username)
     }
 
     pub fn add_user(&mut self, user: User) {
