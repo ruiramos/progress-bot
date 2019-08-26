@@ -155,15 +155,15 @@ fn get_init_standup_copy(latest: Option<&Standup>) -> String {
 }
 
 //fn get_about_prev_day_copy() -> String {
-//    format!(":one: How did *yesterday* go?")
+//    ":one: How did *yesterday* go?".to_string()
 //}
 
 fn get_about_day_copy() -> String {
-    format!(":two: What are you going to be focusing on *today*?")
+    ":two: What are you going to be focusing on *today*?".to_string()
 }
 
 fn get_about_blocker_copy() -> String {
-    format!(":three: Any blockers impacting your work?")
+    ":three: Any blockers impacting your work?".to_string()
 }
 
 fn get_done_copy() -> String {
@@ -175,5 +175,5 @@ fn get_done_copy() -> String {
 
 fn get_complete_copy() -> String {
     // randomize funny quotes
-    format!("You're done for today, off to work you go now! :nerd_face:")
+    "You're done for today, off to work you go now! :nerd_face:".to_string()
 }
