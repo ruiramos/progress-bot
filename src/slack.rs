@@ -3,14 +3,13 @@ use crate::{SlackSlashEvent, Standup, User};
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::env;
 
-const TOKEN: &str = env!("SLACK_TOKEN"); //.expect("Error: SLACK_TOKEN is a required env variable.");
 const POST_MESSAGE_URL: &str = "https://slack.com/api/chat.postMessage";
 const POST_DIALOG_URL: &str = "https://slack.com/api/dialog.open";
 const USER_DETAILS_URL: &str = "https://slack.com/api/users.info";
 
 pub fn send_message(message: String, channel: String) -> Result<(), Box<dyn std::error::Error>> {
+    let token = std::env::var("SLACK_TOKEN").unwrap();
     let payload = json!({
         "text": message,
         "channel": channel,
@@ -21,7 +20,7 @@ pub fn send_message(message: String, channel: String) -> Result<(), Box<dyn std:
     client
         .post(POST_MESSAGE_URL)
         .json(&payload)
-        .header(AUTHORIZATION, format!("Bearer {}", TOKEN))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
         .send()?;
 
     Ok(())
@@ -34,6 +33,7 @@ pub fn send_standup_to_channel(
     standup: &Standup,
     user: &User,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let token = std::env::var("SLACK_TOKEN").unwrap();
     let payload = json!({
         "channel": channel,
         "attachments": [{
@@ -62,7 +62,7 @@ pub fn send_standup_to_channel(
     client
         .post(POST_MESSAGE_URL)
         .json(&payload)
-        .header(AUTHORIZATION, format!("Bearer {}", TOKEN))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
         .send()?;
 
     Ok(())
@@ -85,9 +85,10 @@ pub struct UserProfile {
 }
 
 pub fn get_user_details(username: &str) -> Result<UserProfile, Box<dyn std::error::Error>> {
+    let token = std::env::var("SLACK_TOKEN").unwrap();
     let body = reqwest::get(&format!(
         "{}?user={}&token={}",
-        USER_DETAILS_URL, username, TOKEN
+        USER_DETAILS_URL, username, token
     ))?
     .text()?;
 
@@ -96,6 +97,7 @@ pub fn get_user_details(username: &str) -> Result<UserProfile, Box<dyn std::erro
 }
 
 pub fn send_config_dialog(event: SlackSlashEvent) -> Result<(), Box<dyn std::error::Error>> {
+    let token = std::env::var("SLACK_TOKEN").unwrap();
     let payload = json!({
         "trigger_id": event.trigger_id,
         "dialog": {
@@ -144,7 +146,7 @@ pub fn send_config_dialog(event: SlackSlashEvent) -> Result<(), Box<dyn std::err
     client
         .post(POST_DIALOG_URL)
         .json(&payload)
-        .header(AUTHORIZATION, format!("Bearer {}", TOKEN))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
         .send()?;
 
     Ok(())
