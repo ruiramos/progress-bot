@@ -102,14 +102,14 @@ impl User {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct UserList {
     list: Vec<User>,
 }
 
 impl UserList {
     pub fn new() -> UserList {
-        UserList { list: vec![] }
+        UserList::default()
     }
 
     pub fn find_user(&mut self, username: &str) -> Option<&mut User> {
@@ -143,14 +143,14 @@ impl Standup {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct StandupList {
     list: Vec<Standup>,
 }
 
 impl StandupList {
     pub fn new() -> StandupList {
-        StandupList { list: vec![] }
+        StandupList::default()
     }
 
     pub fn add_standup(&mut self, s: Standup) {
