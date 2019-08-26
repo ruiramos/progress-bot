@@ -1,5 +1,5 @@
 use crate::slack;
-use crate::{EventDetails, SlackConfig, Standup, StandupList, User, UserList, UserState};
+use crate::{EventDetails, SlackConfig, Standup, StandupList, StandupState, User, UserList};
 use chrono::Local;
 
 pub fn challenge(c: String) -> String {
@@ -31,45 +31,77 @@ pub fn event(
 
 pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> (String, String) {
     let msg = evt.text;
+    let todays = standups.get_todays_mut(&evt.user);
 
-    let copy = match &user.state {
-        UserState::Idle => {
-            let todays = standups.get_todays_mut(&evt.user);
-
-            match todays {
-                None => {
-                    let latest = standups.get_latest(&evt.user);
-                    let result = get_init_standup_copy(latest);
-                    let standup = Standup::new(&evt.user);
-                    standups.add_standup(standup);
-                    user.state = UserState::AddPrevDay;
-                    result
+    let copy = match todays {
+        None => {
+            let latest = standups.get_latest(&evt.user);
+            let result = get_init_standup_copy(latest);
+            let standup = Standup::new(&evt.user);
+            standups.add_standup(standup);
+            result
+        }
+        Some(todays) => match todays.get_state() {
+            StandupState::PrevDay => {
+                let standup = standups.get_todays_mut(&evt.user).unwrap();
+                standup.prev_day = Some(msg);
+                get_about_day_copy()
+            }
+            StandupState::Today => {
+                let standup = standups.get_todays_mut(&evt.user).unwrap();
+                standup.day = Some(msg);
+                get_about_blocker_copy()
+            }
+            StandupState::Blocker => {
+                let standup = standups.get_todays_mut(&evt.user).unwrap();
+                standup.blocker = Some(msg);
+                if let Some(_) = user.channel {
+                    share_standup(&user, &standup);
                 }
-                Some(_) => get_complete_copy(),
+                get_done_copy(&user.channel)
             }
-        }
-        UserState::AddPrevDay => {
-            let standup = standups.get_todays_mut(&evt.user).unwrap();
-            standup.prev_day = Some(msg);
-            user.state = UserState::AddDay;
-            get_about_day_copy()
-        }
-        UserState::AddDay => {
-            let standup = standups.get_todays_mut(&evt.user).unwrap();
-            standup.day = Some(msg);
-            user.state = UserState::AddBlocker;
-            get_about_blocker_copy()
-        }
-        UserState::AddBlocker => {
-            let standup = standups.get_todays_mut(&evt.user).unwrap();
-            standup.blocker = Some(msg);
-            user.state = UserState::Idle;
-            if let Some(_) = user.channel {
-                share_standup(&user, &standup);
-            }
-            get_done_copy()
-        }
+            StandupState::Complete => get_complete_copy(),
+        },
     };
+
+    //let copy = match &user.state {
+    //    UserState::Idle => {
+    //        let todays = standups.get_todays_mut(&evt.user);
+
+    //        match todays {
+    //            None => {
+    //                let latest = standups.get_latest(&evt.user);
+    //                let result = get_init_standup_copy(latest);
+    //                let standup = Standup::new(&evt.user);
+    //                standups.add_standup(standup);
+    //                user.state = UserState::AddPrevDay;
+    //                result
+    //            }
+    //            Some(_) => get_complete_copy(),
+    //        }
+    //    }
+    //    UserState::AddPrevDay => {
+    //        let standup = standups.get_todays_mut(&evt.user).unwrap();
+    //        standup.prev_day = Some(msg);
+    //        user.state = UserState::AddDay;
+    //        get_about_day_copy()
+    //    }
+    //    UserState::AddDay => {
+    //        let standup = standups.get_todays_mut(&evt.user).unwrap();
+    //        standup.day = Some(msg);
+    //        user.state = UserState::AddBlocker;
+    //        get_about_blocker_copy()
+    //    }
+    //    UserState::AddBlocker => {
+    //        let standup = standups.get_todays_mut(&evt.user).unwrap();
+    //        standup.blocker = Some(msg);
+    //        user.state = UserState::Idle;
+    //        if let Some(_) = user.channel {
+    //            share_standup(&user, &standup);
+    //        }
+    //        get_done_copy()
+    //    }
+    //};
 
     (copy, evt.user)
 }

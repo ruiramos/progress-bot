@@ -67,19 +67,10 @@ pub struct Standup {
 }
 
 #[derive(Debug)]
-pub enum UserState {
-    Idle,
-    AddPrevDay,
-    AddDay,
-    AddBlocker,
-}
-
-#[derive(Debug)]
 pub struct User {
     username: String,
     channel: Option<String>,
     reminder: Option<DateTime<Utc>>,
-    state: UserState,
     real_name: Option<String>,
     avatar_url: Option<String>,
 }
@@ -88,7 +79,6 @@ impl User {
     pub fn new(username: &str) -> User {
         User {
             username: String::from(username),
-            state: UserState::Idle,
             channel: None,
             reminder: None,
             real_name: None,
@@ -124,7 +114,7 @@ impl UserList {
     }
 }
 
-pub enum StandupStage {
+pub enum StandupState {
     PrevDay,
     Today,
     Blocker,
@@ -139,6 +129,18 @@ impl Standup {
             prev_day: None,
             day: None,
             blocker: None,
+        }
+    }
+
+    pub fn get_state(&self) -> StandupState {
+        if self.prev_day.is_none() {
+            StandupState::PrevDay
+        } else if self.day.is_none() {
+            StandupState::Today
+        } else if self.blocker.is_none() {
+            StandupState::Blocker
+        } else {
+            StandupState::Complete
         }
     }
 }
