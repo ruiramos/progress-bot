@@ -1,8 +1,6 @@
 use crate::slack;
 use crate::{EventDetails, SlackConfig, Standup, StandupList, User, UserList, UserState};
 use chrono::Local;
-use rocket::State;
-use std::sync::{Arc, Mutex};
 
 pub fn challenge(c: String) -> String {
     c
@@ -10,18 +8,17 @@ pub fn challenge(c: String) -> String {
 
 pub fn event(
     evt: EventDetails,
-    standups: State<Arc<Mutex<StandupList>>>,
-    users: State<Arc<Mutex<UserList>>>,
+    standups: &mut StandupList,
+    users: &mut UserList,
 ) -> (String, String) {
-    let user_list = &mut *users.lock().unwrap();
-    let user = user_list.find_user(&evt.user);
+    let user = users.find_user(&evt.user);
 
     let the_user = match user {
         Some(user) => user,
         None => {
             let user = create_user(&evt.user);
-            user_list.add_user(user);
-            user_list.list.last_mut().unwrap()
+            users.add_user(user);
+            users.list.last_mut().unwrap()
         }
     };
 
@@ -32,37 +29,32 @@ pub fn event(
     }
 }
 
-pub fn react(
-    evt: EventDetails,
-    user: &mut User,
-    standups: State<Arc<Mutex<StandupList>>>,
-) -> (String, String) {
+pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> (String, String) {
     let msg = evt.text;
-    let standup_list = &mut *standups.lock().unwrap();
 
     let copy = match &user.state {
         UserState::Idle => {
-            let latest = standup_list.get_latest(&evt.user);
+            let latest = standups.get_latest(&evt.user);
             let result = get_init_standup_copy(latest);
             let standup = Standup::new(&evt.user);
-            standup_list.add_standup(standup);
+            standups.add_standup(standup);
             user.state = UserState::AddPrevDay;
             result
         }
         UserState::AddPrevDay => {
-            let standup = standup_list.get_todays_mut(&evt.user).unwrap();
+            let standup = standups.get_todays_mut(&evt.user).unwrap();
             standup.prev_day = Some(msg);
             user.state = UserState::AddDay;
             get_about_day_copy()
         }
         UserState::AddDay => {
-            let standup = standup_list.get_todays_mut(&evt.user).unwrap();
+            let standup = standups.get_todays_mut(&evt.user).unwrap();
             standup.day = Some(msg);
             user.state = UserState::AddBlocker;
             get_about_blocker_copy()
         }
         UserState::AddBlocker => {
-            let standup = standup_list.get_todays_mut(&evt.user).unwrap();
+            let standup = standups.get_todays_mut(&evt.user).unwrap();
             standup.blocker = Some(msg);
             user.state = UserState::Complete;
             if let Some(_) = user.channel {
@@ -78,10 +70,11 @@ pub fn react(
 
 pub fn react_notification(
     evt: EventDetails,
-    user: &mut User,
-    standups: State<Arc<Mutex<StandupList>>>,
+    _user: &mut User,
+    _standups: &mut StandupList,
 ) -> (String, String) {
-    let msg = evt.text;
+    let _msg = evt.text;
+    // @TODO
     ("hi there".to_string(), evt.user)
 }
 
@@ -97,17 +90,20 @@ pub fn share_standup(user: &User, standup: &Standup) {
     .unwrap();
 }
 
-pub fn config(config: SlackConfig, users: State<Arc<Mutex<UserList>>>) {
-    let user_list = &mut *users.lock().unwrap();
-    let user = user_list.find_user(&config.user.id);
+pub fn config(config: SlackConfig, users: &mut UserList) {
+    let user = users.find_user(&config.user.id);
 
     if let Some(user) = user {
         user.update_config(config);
     } else {
         let mut user = create_user(&config.user.id);
         user.update_config(config);
-        user_list.add_user(user);
+        users.add_user(user);
     }
+}
+
+pub fn remove_todays(user_id: &str, standups: &mut StandupList) {
+    standups.remove_todays_from_user(user_id);
 }
 
 fn create_user(username: &str) -> User {
@@ -152,9 +148,9 @@ fn get_init_standup_copy(latest: Option<&Standup>) -> String {
     text
 }
 
-fn get_about_prev_day_copy() -> String {
-    format!(":one: How did *yesterday* go?")
-}
+//fn get_about_prev_day_copy() -> String {
+//    format!(":one: How did *yesterday* go?")
+//}
 
 fn get_about_day_copy() -> String {
     format!(":two: What are you going to be focusing on *today*?")

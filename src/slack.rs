@@ -141,7 +141,7 @@ pub fn send_config_dialog(event: SlackSlashEvent) -> Result<(), Box<dyn std::err
     });
 
     let client = reqwest::Client::new();
-    let mut resp = client
+    client
         .post(POST_DIALOG_URL)
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", TOKEN))

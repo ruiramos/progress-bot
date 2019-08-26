@@ -181,6 +181,11 @@ impl StandupList {
                 }
             })
     }
+
+    pub fn remove_todays_from_user(&mut self, user: &str) {
+        let today = Utc::now().date();
+        self.list.retain(|s| s.user != user && s.date != today);
+    }
 }
 
 #[cfg(test)]
