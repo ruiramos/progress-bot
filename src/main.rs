@@ -44,7 +44,13 @@ fn post_remove_todays(
     standups: State<Arc<Mutex<StandupList>>>,
 ) -> String {
     let standups = &mut *standups.lock().unwrap();
-    handle::remove_todays(&content.into_inner().user_id, standups);
+    let user_id = content.into_inner().user_id;
+    handle::remove_todays(&user_id, standups);
+
+    let msg =
+        String::from(":shrug: Just forgot all about today's standup, feel free to try again.");
+    slack::send_message(msg, user_id).unwrap();
+
     "".to_string()
 }
 
@@ -80,7 +86,13 @@ fn main() {
         .manage(Arc::new(Mutex::new(UserList::new())))
         .mount(
             "/",
-            routes![index, post_show_config, post_config, post_event],
+            routes![
+                index,
+                post_show_config,
+                post_config,
+                post_event,
+                post_remove_todays
+            ],
         )
         .launch();
 }

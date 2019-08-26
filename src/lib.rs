@@ -72,7 +72,6 @@ pub enum UserState {
     AddPrevDay,
     AddDay,
     AddBlocker,
-    Complete,
 }
 
 #[derive(Debug)]
