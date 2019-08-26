@@ -64,7 +64,7 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
             let standup = standups.get_todays_mut(&evt.user).unwrap();
             standup.blocker = Some(msg);
             user.state = UserState::Idle;
-            if let Some(_) = user.channel {
+            if user.channel.is_some() {
                 share_standup(&user, &standup);
             }
             get_done_copy()
