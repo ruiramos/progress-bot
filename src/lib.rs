@@ -6,6 +6,7 @@ pub mod handle;
 pub mod slack;
 use chrono::prelude::*;
 use rocket::request::FromForm;
+use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 pub struct SlackEvent {
@@ -92,25 +93,13 @@ impl User {
     }
 }
 
-#[derive(Debug)]
-pub struct UserList {
-    list: Vec<User>,
+pub type UserList = HashMap<String, User>;
+
 }
 
-impl UserList {
-    pub fn new() -> UserList {
-        UserList { list: vec![] }
+
     }
 
-    pub fn find_user(&mut self, username: &str) -> Option<&mut User> {
-        self.list
-            .iter_mut()
-            .filter(|u| u.username == username)
-            .next()
-    }
-
-    pub fn add_user(&mut self, user: User) {
-        self.list.push(user);
     }
 }
 

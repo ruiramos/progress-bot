@@ -11,21 +11,19 @@ pub fn event(
     standups: &mut StandupList,
     users: &mut UserList,
 ) -> (String, String) {
-    let user = users.find_user(&evt.user);
-
-    let the_user = match user {
+    let user = match users.get_mut(&evt.user) {
         Some(user) => user,
         None => {
-            let user = create_user(&evt.user);
-            users.add_user(user);
-            users.list.last_mut().unwrap()
+            let tmp = create_user(&evt.user);
+            users.insert(evt.user.clone(), tmp);
+            users.get_mut(&evt.user).unwrap()
         }
     };
 
     if evt.r#type == "message" {
-        react(evt, the_user, standups)
+        react(evt, user, standups)
     } else {
-        react_notification(evt, the_user, standups)
+        react_notification(evt, user, standups)
     }
 }
 
@@ -129,14 +127,14 @@ pub fn share_standup(user: &User, standup: &Standup) {
 }
 
 pub fn config(config: SlackConfig, users: &mut UserList) {
-    let user = users.find_user(&config.user.id);
+    let user = users.get_mut(&config.user.id);
 
     if let Some(user) = user {
         user.update_config(config);
     } else {
         let mut user = create_user(&config.user.id);
         user.update_config(config);
-        users.add_user(user);
+        users.insert(user.username.clone(), user);
     }
 }
 
