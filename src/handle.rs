@@ -62,45 +62,6 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
         },
     };
 
-    //let copy = match &user.state {
-    //    UserState::Idle => {
-    //        let todays = standups.get_todays_mut(&evt.user);
-
-    //        match todays {
-    //            None => {
-    //                let latest = standups.get_latest(&evt.user);
-    //                let result = get_init_standup_copy(latest);
-    //                let standup = Standup::new(&evt.user);
-    //                standups.add_standup(standup);
-    //                user.state = UserState::AddPrevDay;
-    //                result
-    //            }
-    //            Some(_) => get_complete_copy(),
-    //        }
-    //    }
-    //    UserState::AddPrevDay => {
-    //        let standup = standups.get_todays_mut(&evt.user).unwrap();
-    //        standup.prev_day = Some(msg);
-    //        user.state = UserState::AddDay;
-    //        get_about_day_copy()
-    //    }
-    //    UserState::AddDay => {
-    //        let standup = standups.get_todays_mut(&evt.user).unwrap();
-    //        standup.day = Some(msg);
-    //        user.state = UserState::AddBlocker;
-    //        get_about_blocker_copy()
-    //    }
-    //    UserState::AddBlocker => {
-    //        let standup = standups.get_todays_mut(&evt.user).unwrap();
-    //        standup.blocker = Some(msg);
-    //        user.state = UserState::Idle;
-    //        if let Some(_) = user.channel {
-    //            share_standup(&user, &standup);
-    //        }
-    //        get_done_copy()
-    //    }
-    //};
-
     (copy, evt.user)
 }
 
