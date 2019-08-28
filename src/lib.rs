@@ -57,17 +57,6 @@ pub struct SlackConfigResponse {
 }
 
 #[derive(Debug)]
-pub struct Standup {
-    user: String,
-    date: Date<Utc>,
-
-    // not sure if it would be better to encapsulate this?
-    prev_day: Option<String>,
-    day: Option<String>,
-    blocker: Option<String>,
-}
-
-#[derive(Debug)]
 pub struct User {
     username: String,
     channel: Option<String>,
@@ -95,19 +84,22 @@ impl User {
 
 pub type UserList = HashMap<String, User>;
 
-}
-
-
-    }
-
-    }
-}
-
 pub enum StandupState {
     PrevDay,
     Today,
     Blocker,
     Complete,
+}
+
+#[derive(Debug)]
+pub struct Standup {
+    user: String,
+    date: Date<Utc>,
+
+    // not sure if it would be better to encapsulate this?
+    prev_day: Option<String>,
+    day: Option<String>,
+    blocker: Option<String>,
 }
 
 impl Standup {

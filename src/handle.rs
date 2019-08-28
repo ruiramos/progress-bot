@@ -76,7 +76,7 @@ pub fn react_notification(
 }
 
 pub fn share_standup(user: &User, standup: &Standup) {
-    let msg = ":baguette_bread: Here's a fresh new standup for y'all:";
+    let msg = ":newspaper: Here's the latest:";
     slack::send_standup_to_channel(
         user.channel.as_ref().unwrap(),
         msg,
