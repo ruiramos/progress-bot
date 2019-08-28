@@ -161,7 +161,7 @@ fn get_done_copy(channel: &Option<String>) -> String {
     let extra = match channel {
         None => String::from(""),
         Some(channel) => format!(
-            "Additionally, I've shared the standup notes to #{}",
+            "Additionally, I've shared the standup notes to <#{}>",
             channel //@TODO this is not che channel name
         ),
     };
