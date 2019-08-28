@@ -47,11 +47,14 @@ fn post_remove_todays(
     let user_id = content.into_inner().user_id;
     handle::remove_todays(&user_id, standups);
 
-    let msg =
-        String::from(":shrug: Just forgot all about today's standup, feel free to try again.");
-    slack::send_message(msg, user_id).unwrap();
+    //let msg =
+    //    String::from(":shrug: Just forgot all about today's standup, feel free to try again.");
+    //slack::send_message(msg, user_id).unwrap();
 
-    "".to_string()
+    json!({
+        "text": ":shrug: Just forgot all about today's standup, feel free to try again.",
+    })
+    .to_string()
 }
 
 #[post("/", data = "<event>")]
