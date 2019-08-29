@@ -84,16 +84,28 @@ pub fn share_standup(user: &User, standup: &Standup) {
     .unwrap();
 }
 
-pub fn config(config: SlackConfig, users: &mut UserList) {
+pub fn config(config: SlackConfig, users: &mut UserList) -> String {
     let user = users.get_mut(&config.user.id);
 
     if let Some(user) = user {
-        user.update_config(config);
+        user.update_config(&config);
     } else {
         let mut user = create_user(&config.user.id);
-        user.update_config(config);
+        user.update_config(&config);
         users.insert(user.username.clone(), user);
     }
+
+    let copy = match (&config.submission.reminder, &config.submission.channel) {
+        (None, None) => "No changes made.".to_string(),
+        (None, Some(c)) => format!("Will now post your standups in <#{}>.", c),
+        (Some(r), None) => format!("Will now remind you daily at {}.", r),
+        (Some(r), Some(c)) => format!(
+            "Will now post your standups in <#{}> and remind you daily at {}.",
+            c, r
+        ),
+    };
+
+    copy
 }
 
 pub fn remove_todays(user_id: &str, standups: &mut StandupList) {

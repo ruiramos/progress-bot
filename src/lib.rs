@@ -76,8 +76,8 @@ impl User {
         }
     }
 
-    pub fn update_config(&mut self, config: SlackConfig) {
-        self.channel = config.submission.channel;
+    pub fn update_config(&mut self, config: &SlackConfig) {
+        self.channel = config.submission.channel.clone();
         //self.reminder = Some(config.submission.reminder);
     }
 }

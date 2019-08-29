@@ -32,11 +32,11 @@ fn post_show_config(content: LenientForm<SlackSlashEvent>) -> String {
 }
 
 #[post("/config", data = "<config>")]
-fn post_config(config: Form<SlackConfigResponse>, users: State<Arc<Mutex<UserList>>>) -> String {
+fn post_config(config: Form<SlackConfigResponse>, users: State<Arc<Mutex<UserList>>>) -> JsonValue {
     let config: SlackConfig = serde_json::from_str(&config.payload).unwrap();
     let user_list = &mut *users.lock().unwrap();
-    handle::config(config, user_list);
-    "".to_string()
+
+    json!({ "text": handle::config(config, user_list) })
 }
 
 #[post("/remove", data = "<content>")]
