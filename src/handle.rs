@@ -60,12 +60,16 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
 
 pub fn react_notification(
     evt: EventDetails,
-    _user: &mut User,
-    _standups: &mut StandupList,
+    user: &mut User,
+    standups: &mut StandupList,
 ) -> (String, String) {
     let _msg = evt.text;
-    // @TODO
-    ("Hi there!".to_string(), evt.user)
+    let todays = standups.get_todays_mut(&evt.user);
+    let copy = match todays {
+        None => "Hi there!".to_string(),
+        Some(s) => s.get_copy(&user.channel),
+    };
+    (copy, evt.user)
 }
 
 pub fn share_standup(user: &User, standup: &Standup) {
