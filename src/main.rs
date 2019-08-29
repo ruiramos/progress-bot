@@ -36,7 +36,7 @@ fn post_config(config: Form<SlackConfigResponse>, users: State<Arc<Mutex<UserLis
     let config: SlackConfig = serde_json::from_str(&config.payload).unwrap();
     let user_list = &mut *users.lock().unwrap();
 
-    json!({ "text": handle::config(config, user_list) })
+    json!({ "text": "handle::config(config, user_list)" })
 }
 
 #[post("/remove", data = "<content>")]
