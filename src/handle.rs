@@ -40,6 +40,7 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
             result
         }
         Some(todays) => {
+            let copy = todays.get_copy(&user.channel);
             match todays.get_state() {
                 StandupState::Blocker => {
                     todays.add_content(&msg);
@@ -50,7 +51,7 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
                 _ => todays.add_content(&msg),
             }
 
-            todays.get_copy(&user.channel)
+            copy
         }
     };
 
