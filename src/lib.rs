@@ -124,6 +124,40 @@ impl Standup {
             StandupState::Complete
         }
     }
+
+    pub fn add_content(&mut self, content: &str) {
+        match self.get_state() {
+            StandupState::PrevDay => self.prev_day = Some(content.to_string()),
+            StandupState::Today => self.day = Some(content.to_string()),
+            StandupState::Blocker => self.blocker = Some(content.to_string()),
+            _ => (),
+        }
+    }
+
+    pub fn get_copy(&self, channel: &Option<String>) -> String {
+        match self.get_state() {
+            StandupState::PrevDay => {
+                ":two: What are you going to be focusing on *today*?".to_string()
+            }
+            StandupState::Today => ":three: Any blockers impacting your work?".to_string(),
+            StandupState::Blocker => {
+                let extra = match channel {
+                    None => String::from(""),
+                    Some(channel) => format!(
+                        "Additionally, I've shared the standup notes to <#{}>.",
+                        channel
+                    ),
+                };
+
+                format!(":white_check_mark: *All done here!* {}\n\n Thank you, have a great day and talk to you {}.",
+                    extra, "tomorrow"
+                )
+            }
+            StandupState::Complete => {
+                "You're done for today, off to work you go now! :nerd_face:".to_string()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default)]

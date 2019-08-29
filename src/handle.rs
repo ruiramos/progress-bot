@@ -39,27 +39,19 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
             standups.add_standup(standup);
             result
         }
-        Some(todays) => match todays.get_state() {
-            StandupState::PrevDay => {
-                let standup = standups.get_todays_mut(&evt.user).unwrap();
-                standup.prev_day = Some(msg);
-                get_about_day_copy()
-            }
-            StandupState::Today => {
-                let standup = standups.get_todays_mut(&evt.user).unwrap();
-                standup.day = Some(msg);
-                get_about_blocker_copy()
-            }
-            StandupState::Blocker => {
-                let standup = standups.get_todays_mut(&evt.user).unwrap();
-                standup.blocker = Some(msg);
-                if let Some(_) = user.channel {
-                    share_standup(&user, &standup);
+        Some(todays) => {
+            match todays.get_state() {
+                StandupState::Blocker => {
+                    todays.add_content(&msg);
+                    if let Some(_) = user.channel {
+                        share_standup(&user, &todays);
+                    }
                 }
-                get_done_copy(&user.channel)
+                _ => todays.add_content(&msg),
             }
-            StandupState::Complete => get_complete_copy(),
-        },
+
+            todays.get_copy(&user.channel)
+        }
     };
 
     (copy, evt.user)
@@ -72,7 +64,7 @@ pub fn react_notification(
 ) -> (String, String) {
     let _msg = evt.text;
     // @TODO
-    ("hi there".to_string(), evt.user)
+    ("Hi there!".to_string(), evt.user)
 }
 
 pub fn share_standup(user: &User, standup: &Standup) {
@@ -117,7 +109,7 @@ fn create_user(username: &str) -> User {
 // copy fns
 
 fn get_init_standup_copy(latest: Option<&Standup>) -> String {
-    let mut text = String::from("*Hello! :wave: Thanks for checking in today.*\n");
+    let mut text = String::from("*:wave: Thanks for checking in today.*\n");
 
     if let Some(standup) = &latest {
         text.push_str("Here's what you were busy with last time we met:\n\n");
@@ -143,36 +135,4 @@ fn get_init_standup_copy(latest: Option<&Standup>) -> String {
     );
 
     text
-}
-
-//fn get_about_prev_day_copy() -> String {
-//    ":one: How did *yesterday* go?".to_string()
-//}
-
-fn get_about_day_copy() -> String {
-    ":two: What are you going to be focusing on *today*?".to_string()
-}
-
-fn get_about_blocker_copy() -> String {
-    ":three: Any blockers impacting your work?".to_string()
-}
-
-fn get_done_copy(channel: &Option<String>) -> String {
-    let extra = match channel {
-        None => String::from(""),
-        Some(channel) => format!(
-            "Additionally, I've shared the standup notes to <#{}>.",
-            channel
-        ),
-    };
-
-    format!(
-        ":white_check_mark: *All done here!* {}\n\n Thank you, have a great day and talk to you {}.",
-        extra, "tomorrow"
-    )
-}
-
-fn get_complete_copy() -> String {
-    // randomize funny quotes
-    "You're done for today, off to work you go now! :nerd_face:".to_string()
 }
