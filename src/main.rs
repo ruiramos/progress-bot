@@ -16,6 +16,7 @@ use rocket_contrib::databases::diesel;
 use rocket_contrib::json::Json;
 use rocket_contrib::json::JsonValue;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
 #[database("postgres")]
 struct DbConn(diesel::PgConnection);
@@ -26,17 +27,28 @@ fn index() -> &'static str {
 }
 
 #[post("/show-config", data = "<content>")]
-fn post_show_config(content: LenientForm<SlackSlashEvent>) -> String {
-    slack::send_config_dialog(content.into_inner()).unwrap();
+fn post_show_config(
+    content: LenientForm<SlackSlashEvent>,
+    users: State<Arc<Mutex<UserList>>>,
+) -> String {
+    let user_list = &mut *users.lock().unwrap();
+    let content = content.into_inner();
+    let user = user_list.get(&content.user_id);
+    slack::send_config_dialog(content, user).unwrap();
     "".to_string()
 }
 
 #[post("/config", data = "<config>")]
 fn post_config(config: Form<SlackConfigResponse>, users: State<Arc<Mutex<UserList>>>) -> String {
-    let config: SlackConfig = serde_json::from_str(&config.payload).unwrap();
     let user_list = &mut *users.lock().unwrap();
+    let config: SlackConfig = serde_json::from_str(&config.payload).unwrap();
+    let copy = handle::config(&config, user_list);
 
-    handle::config(config, user_list)
+    thread::spawn(move || {
+        slack::send_response(&copy, &config.response_url).unwrap();
+    });
+
+    "".to_string()
 }
 
 #[post("/remove", data = "<content>")]

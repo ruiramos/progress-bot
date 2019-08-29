@@ -49,6 +49,7 @@ pub struct SlackConfig {
     pub user: SlackConfigResource,
     pub channel: SlackConfigResource,
     pub submission: SlackConfigSubmission,
+    pub response_url: String,
 }
 
 #[derive(Debug, FromForm)]

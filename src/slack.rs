@@ -96,8 +96,28 @@ pub fn get_user_details(username: &str) -> Result<UserProfile, Box<dyn std::erro
     Ok(user.user.profile)
 }
 
-pub fn send_config_dialog(event: SlackSlashEvent) -> Result<(), Box<dyn std::error::Error>> {
+pub fn send_config_dialog(
+    event: SlackSlashEvent,
+    user: Option<&User>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let token = std::env::var("SLACK_TOKEN").unwrap();
+
+    let channel = match user {
+        Some(u) => match u.channel.as_ref() {
+            Some(channel) => channel,
+            None => "",
+        },
+        None => "",
+    };
+
+    let reminder = match user {
+        Some(u) => match u.reminder {
+            Some(date) => date.to_string(),
+            None => "".to_string(),
+        },
+        None => "".to_string(),
+    };
+
     let payload = json!({
         "trigger_id": event.trigger_id,
         "dialog": {
@@ -111,13 +131,15 @@ pub fn send_config_dialog(event: SlackSlashEvent) -> Result<(), Box<dyn std::err
                     "optional": "true",
                     "label": "Channel to notify",
                     "name": "channel",
-                    "data_source": "conversations"
+                    "data_source": "conversations",
+                    "value": channel
                 },
                 {
                     "type": "select",
                     "optional": "true",
                     "label": "Reminder",
                     "name": "reminder",
+                    "value": reminder,
                     "options": [{
                         "label": "08:00",
                         "value": "8"
@@ -145,6 +167,23 @@ pub fn send_config_dialog(event: SlackSlashEvent) -> Result<(), Box<dyn std::err
     let client = reqwest::Client::new();
     client
         .post(POST_DIALOG_URL)
+        .json(&payload)
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()?;
+
+    Ok(())
+}
+
+pub fn send_response(copy: &str, response_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let token = std::env::var("SLACK_TOKEN").unwrap();
+    let payload = json!({
+        "text": copy.to_string(),
+        "response_type": "ephemeral"
+    });
+
+    let client = reqwest::Client::new();
+    client
+        .post(response_url)
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", token))
         .send()?;

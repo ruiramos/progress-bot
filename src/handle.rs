@@ -84,7 +84,7 @@ pub fn share_standup(user: &User, standup: &Standup) {
     .unwrap();
 }
 
-pub fn config(config: SlackConfig, users: &mut UserList) -> String {
+pub fn config(config: &SlackConfig, users: &mut UserList) -> String {
     let user = users.get_mut(&config.user.id);
 
     if let Some(user) = user {
