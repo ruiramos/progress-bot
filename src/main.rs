@@ -32,11 +32,11 @@ fn post_show_config(content: LenientForm<SlackSlashEvent>) -> String {
 }
 
 #[post("/config", data = "<config>")]
-fn post_config(config: Form<SlackConfigResponse>, users: State<Arc<Mutex<UserList>>>) -> JsonValue {
+fn post_config(config: Form<SlackConfigResponse>, users: State<Arc<Mutex<UserList>>>) -> String {
     let config: SlackConfig = serde_json::from_str(&config.payload).unwrap();
     let user_list = &mut *users.lock().unwrap();
 
-    json!({ "text": "handle::config(config, user_list)" })
+    handle::config(config, user_list)
 }
 
 #[post("/remove", data = "<content>")]
@@ -47,10 +47,6 @@ fn post_remove_todays(
     let standups = &mut *standups.lock().unwrap();
     let user_id = content.into_inner().user_id;
     handle::remove_todays(&user_id, standups);
-
-    //let msg =
-    //    String::from(":shrug: Just forgot all about today's standup, feel free to try again.");
-    //slack::send_message(msg, user_id).unwrap();
 
     json!({
         "text": ":shrug: Just forgot all about today's standup, feel free to try again.",
