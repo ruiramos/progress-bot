@@ -126,14 +126,14 @@ impl Standup {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct StandupList {
     list: Vec<Standup>,
 }
 
 impl StandupList {
     pub fn new() -> StandupList {
-        StandupList { list: vec![] }
+        StandupList::default()
     }
 
     pub fn add_standup(&mut self, s: Standup) {
