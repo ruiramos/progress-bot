@@ -44,7 +44,7 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
             match todays.get_state() {
                 StandupState::Blocker => {
                     todays.add_content(&msg);
-                    if let Some(_) = user.channel {
+                    if user.channel.is_some() {
                         share_standup(&user, &todays);
                     }
                 }
