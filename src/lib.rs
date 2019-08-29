@@ -6,6 +6,7 @@ pub mod handle;
 pub mod slack;
 use chrono::prelude::*;
 use rocket::request::FromForm;
+use std::collections::HashMap;
 
 #[derive(Deserialize, Debug)]
 pub struct SlackEvent {
@@ -56,30 +57,10 @@ pub struct SlackConfigResponse {
 }
 
 #[derive(Debug)]
-pub struct Standup {
-    user: String,
-    date: Date<Utc>,
-
-    // not sure if it would be better to encapsulate this?
-    prev_day: Option<String>,
-    day: Option<String>,
-    blocker: Option<String>,
-}
-
-#[derive(Debug)]
-pub enum UserState {
-    Idle,
-    AddPrevDay,
-    AddDay,
-    AddBlocker,
-}
-
-#[derive(Debug)]
 pub struct User {
     username: String,
     channel: Option<String>,
     reminder: Option<DateTime<Utc>>,
-    state: UserState,
     real_name: Option<String>,
     avatar_url: Option<String>,
 }
@@ -88,7 +69,6 @@ impl User {
     pub fn new(username: &str) -> User {
         User {
             username: String::from(username),
-            state: UserState::Idle,
             channel: None,
             reminder: None,
             real_name: None,
@@ -102,30 +82,24 @@ impl User {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct UserList {
-    list: Vec<User>,
-}
+pub type UserList = HashMap<String, User>;
 
-impl UserList {
-    pub fn new() -> UserList {
-        UserList::default()
-    }
-
-    pub fn find_user(&mut self, username: &str) -> Option<&mut User> {
-        self.list.iter_mut().find(|u| u.username == username)
-    }
-
-    pub fn add_user(&mut self, user: User) {
-        self.list.push(user);
-    }
-}
-
-pub enum StandupStage {
+pub enum StandupState {
     PrevDay,
     Today,
     Blocker,
     Complete,
+}
+
+#[derive(Debug)]
+pub struct Standup {
+    user: String,
+    date: Date<Utc>,
+
+    // not sure if it would be better to encapsulate this?
+    prev_day: Option<String>,
+    day: Option<String>,
+    blocker: Option<String>,
 }
 
 impl Standup {
@@ -136,6 +110,18 @@ impl Standup {
             prev_day: None,
             day: None,
             blocker: None,
+        }
+    }
+
+    pub fn get_state(&self) -> StandupState {
+        if self.prev_day.is_none() {
+            StandupState::PrevDay
+        } else if self.day.is_none() {
+            StandupState::Today
+        } else if self.blocker.is_none() {
+            StandupState::Blocker
+        } else {
+            StandupState::Complete
         }
     }
 }

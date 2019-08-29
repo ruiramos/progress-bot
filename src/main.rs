@@ -14,6 +14,7 @@ use rocket::request::LenientForm;
 use rocket::State;
 use rocket_contrib::databases::diesel;
 use rocket_contrib::json::Json;
+use rocket_contrib::json::JsonValue;
 use std::sync::{Arc, Mutex};
 
 #[database("postgres")]
@@ -42,16 +43,18 @@ fn post_config(config: Form<SlackConfigResponse>, users: State<Arc<Mutex<UserLis
 fn post_remove_todays(
     content: LenientForm<SlackSlashEvent>,
     standups: State<Arc<Mutex<StandupList>>>,
-) -> String {
+) -> JsonValue {
     let standups = &mut *standups.lock().unwrap();
     let user_id = content.into_inner().user_id;
     handle::remove_todays(&user_id, standups);
 
-    let msg =
-        String::from(":shrug: Just forgot all about today's standup, feel free to try again.");
-    slack::send_message(msg, user_id).unwrap();
+    //let msg =
+    //    String::from(":shrug: Just forgot all about today's standup, feel free to try again.");
+    //slack::send_message(msg, user_id).unwrap();
 
-    "".to_string()
+    json!({
+        "text": ":shrug: Just forgot all about today's standup, feel free to try again.",
+    })
 }
 
 #[post("/", data = "<event>")]
