@@ -68,7 +68,13 @@ pub fn react_notification(
     let todays = get_todays_standup_for_user(&evt.user, conn);
     let copy = match todays {
         None => "Hi there!".to_string(),
-        Some(s) => s.get_copy(&user.channel),
+        Some(s) => {
+            if let StandupState::Complete = s.get_state() {
+                "You're done for today, off to work you go now! :nerd_face:".to_string()
+            } else {
+                s.get_copy(&user.channel)
+            }
+        }
     };
     (copy, evt.user)
 }
