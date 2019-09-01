@@ -183,9 +183,9 @@ pub fn create_standup(username: &str, conn: &PgConnection) -> Standup {
         .expect("Error saving new Standup")
 }
 
-pub fn update_standup(standup: Standup, conn: &PgConnection) -> Standup {
+pub fn update_standup(standup: &Standup, conn: &PgConnection) -> Standup {
     diesel::update(standups::table)
-        .set(&standup)
+        .set(standup)
         .get_result(conn)
         .expect("Error updating Standup")
 }

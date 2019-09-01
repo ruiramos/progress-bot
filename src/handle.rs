@@ -36,20 +36,23 @@ pub fn react(evt: EventDetails, user: User, conn: &diesel::PgConnection) -> (Str
             result
         }
         Some(mut todays) => {
-            let copy = todays.get_copy(&user.channel);
-            match todays.get_state() {
-                StandupState::Blocker => {
-                    todays.add_content(&msg);
-                    if user.channel.is_some() {
-                        share_standup(&user, &todays, &conn);
+            if let StandupState::Complete = todays.get_state() {
+                "You're done for today, off to work you go now! :nerd_face:".to_string()
+            } else {
+                match todays.get_state() {
+                    StandupState::Blocker => {
+                        todays.add_content(&msg);
+                        if user.channel.is_some() {
+                            share_standup(&user, &todays, &conn);
+                        }
                     }
+                    _ => todays.add_content(&msg),
                 }
-                _ => todays.add_content(&msg),
+
+                update_standup(&todays, conn);
+
+                todays.get_copy(&user.channel)
             }
-
-            update_standup(todays, conn);
-
-            copy
         }
     };
 

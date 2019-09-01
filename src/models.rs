@@ -59,10 +59,14 @@ impl Standup {
     pub fn get_copy(&self, channel: &Option<String>) -> String {
         match self.get_state() {
             StandupState::PrevDay => {
+                ":one: Firstly how did *yesterday* go? In one line, what were you able to achieve?"
+                    .to_string()
+            }
+            StandupState::Today => {
                 ":two: What are you going to be focusing on *today*?".to_string()
             }
-            StandupState::Today => ":three: Any blockers impacting your work?".to_string(),
-            StandupState::Blocker => {
+            StandupState::Blocker => ":three: Any blockers impacting your work?".to_string(),
+            StandupState::Complete => {
                 let extra = match channel {
                     None => String::from(""),
                     Some(channel) => format!(
@@ -74,9 +78,6 @@ impl Standup {
                 format!(":white_check_mark: *All done here!* {}\n\n Thank you, have a great day and talk to you {}.",
                     extra, "tomorrow"
                 )
-            }
-            StandupState::Complete => {
-                "You're done for today, off to work you go now! :nerd_face:".to_string()
             }
         }
     }
