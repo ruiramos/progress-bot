@@ -3,5 +3,5 @@ address = "localhost"
 port = 8800
 
 [global.databases]
-postgres = { url = "postgres://diesel:password@localhost:5432/diesel" }
+postgres = { url = "postgres://diesel:password@localhost:5433/diesel" }
 

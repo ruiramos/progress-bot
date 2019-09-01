@@ -1,45 +1,40 @@
 use crate::slack;
-use crate::{EventDetails, SlackConfig, Standup, StandupList, StandupState, User, UserList};
+use crate::{
+    create_standup, create_user, get_latest_standup_for_user, get_todays_standup_for_user,
+    get_user, remove_todays_standup_for_user, update_standup, update_user,
+};
+use crate::{EventDetails, SlackConfig, Standup, StandupState, User};
 use chrono::Local;
 
 pub fn challenge(c: String) -> String {
     c
 }
 
-pub fn event(
-    evt: EventDetails,
-    standups: &mut StandupList,
-    users: &mut UserList,
-) -> (String, String) {
-    let user = match users.get_mut(&evt.user) {
+pub fn event(evt: EventDetails, conn: &diesel::PgConnection) -> (String, String) {
+    let user = match get_user(&evt.user, conn) {
         Some(user) => user,
-        None => {
-            let tmp = create_user(&evt.user);
-            users.insert(evt.user.clone(), tmp);
-            users.get_mut(&evt.user).unwrap()
-        }
+        None => create_user(&evt.user, conn),
     };
 
     if evt.r#type == "message" {
-        react(evt, user, standups)
+        react(evt, user, conn)
     } else {
-        react_notification(evt, user, standups)
+        react_notification(evt, user, conn)
     }
 }
 
-pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> (String, String) {
+pub fn react(evt: EventDetails, user: User, conn: &diesel::PgConnection) -> (String, String) {
     let msg = evt.text;
-    let todays = standups.get_todays_mut(&evt.user);
+    let todays = get_todays_standup_for_user(&evt.user, conn);
 
     let copy = match todays {
         None => {
-            let latest = standups.get_latest(&evt.user);
-            let result = get_init_standup_copy(latest);
-            let standup = Standup::new(&evt.user);
-            standups.add_standup(standup);
+            let latest = get_latest_standup_for_user(&evt.user, conn);
+            let result = gen_standup_copy(latest);
+            create_standup(&evt.user, conn);
             result
         }
-        Some(todays) => {
+        Some(mut todays) => {
             let copy = todays.get_copy(&user.channel);
             match todays.get_state() {
                 StandupState::Blocker => {
@@ -51,6 +46,8 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
                 _ => todays.add_content(&msg),
             }
 
+            update_standup(todays, conn);
+
             copy
         }
     };
@@ -60,11 +57,11 @@ pub fn react(evt: EventDetails, user: &mut User, standups: &mut StandupList) -> 
 
 pub fn react_notification(
     evt: EventDetails,
-    user: &mut User,
-    standups: &mut StandupList,
+    user: User,
+    conn: &diesel::PgConnection,
 ) -> (String, String) {
     let _msg = evt.text;
-    let todays = standups.get_todays_mut(&evt.user);
+    let todays = get_todays_standup_for_user(&evt.user, conn);
     let copy = match todays {
         None => "Hi there!".to_string(),
         Some(s) => s.get_copy(&user.channel),
@@ -84,23 +81,23 @@ pub fn share_standup(user: &User, standup: &Standup) {
     .unwrap();
 }
 
-pub fn config(config: &SlackConfig, users: &mut UserList) -> String {
-    let user = users.get_mut(&config.user.id);
+pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
+    let mut user = match get_user(&config.user.id, conn) {
+        Some(user) => user,
+        None => create_user(&config.user.id, conn),
+    };
 
-    if let Some(user) = user {
-        user.update_config(&config);
-    } else {
-        let mut user = create_user(&config.user.id);
-        user.update_config(&config);
-        users.insert(user.username.clone(), user);
-    }
+    user.channel = config.submission.channel.clone();
+    //user.reminder = Some(config.submission.reminder);
+
+    update_user(&mut user, conn);
 
     let copy = match (&config.submission.reminder, &config.submission.channel) {
-        (None, None) => "No changes made.".to_string(),
-        (None, Some(c)) => format!("Will now post your standups in <#{}>.", c),
-        (Some(r), None) => format!("Will now remind you daily at {}.", r),
+        (None, None) => "Will not remind you or post your standups anywhere else.".to_string(),
+        (None, Some(c)) => format!("Will post your standups in <#{}>.", c),
+        (Some(r), None) => format!("Will remind you daily at {}.", r),
         (Some(r), Some(c)) => format!(
-            "Will now post your standups in <#{}> and remind you daily at {}.",
+            "Will post your standups in <#{}> and remind you daily at {}.",
             c, r
         ),
     };
@@ -108,24 +105,14 @@ pub fn config(config: &SlackConfig, users: &mut UserList) -> String {
     copy
 }
 
-pub fn remove_todays(user_id: &str, standups: &mut StandupList) {
-    standups.remove_todays_from_user(user_id);
-}
-
-fn create_user(username: &str) -> User {
-    let mut temp = User::new(username);
-
-    if let Ok(details) = slack::get_user_details(username) {
-        temp.real_name = Some(details.real_name);
-        temp.avatar_url = Some(details.image_48);
-    }
-
-    temp
+pub fn remove_todays(user_id: &str, conn: &diesel::PgConnection) -> String {
+    remove_todays_standup_for_user(user_id, conn);
+    ":shrug: Just forgot all about today's standup, feel free to try again.".to_string()
 }
 
 // copy fns
 
-fn get_init_standup_copy(latest: Option<&Standup>) -> String {
+fn gen_standup_copy(latest: Option<Standup>) -> String {
     let mut text = String::from("*:wave: Thanks for checking in today.*\n");
 
     if let Some(standup) = &latest {

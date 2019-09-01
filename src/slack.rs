@@ -4,9 +4,10 @@ use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-const POST_MESSAGE_URL: &str = "https://slack.com/api/chat.postMessage";
-const POST_DIALOG_URL: &str = "https://slack.com/api/dialog.open";
-const USER_DETAILS_URL: &str = "https://slack.com/api/users.info";
+const SLACK_HOST: &str = "https://slack.com";
+const POST_MESSAGE: &str = "/api/chat.postMessage";
+const POST_DIALOG: &str = "/api/dialog.open";
+const USER_DETAILS: &str = "/api/users.info";
 
 pub fn send_message(message: String, channel: String) -> Result<(), Box<dyn std::error::Error>> {
     let token = std::env::var("SLACK_TOKEN").unwrap();
@@ -18,7 +19,7 @@ pub fn send_message(message: String, channel: String) -> Result<(), Box<dyn std:
 
     let client = reqwest::Client::new();
     client
-        .post(POST_MESSAGE_URL)
+        .post(&format!("{}{}", SLACK_HOST, POST_MESSAGE))
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", token))
         .send()?;
@@ -38,8 +39,8 @@ pub fn send_standup_to_channel(
         "channel": channel,
         "attachments": [{
             "pretext": message,
-            "author_name": user.real_name.as_ref().unwrap_or(&user.username),
-            "author_icon": user.avatar_url.as_ref().unwrap_or(&"".to_string()),
+            "author_name": user.real_name,
+            "author_icon": user.avatar_url,
             "footer": "@progress",
             "ts": ts,
             "fields": [{
@@ -60,7 +61,7 @@ pub fn send_standup_to_channel(
 
     let client = reqwest::Client::new();
     client
-        .post(POST_MESSAGE_URL)
+        .post(&format!("{}{}", SLACK_HOST, POST_MESSAGE))
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", token))
         .send()?;
@@ -85,10 +86,10 @@ pub struct UserProfile {
 }
 
 pub fn get_user_details(username: &str) -> Result<UserProfile, Box<dyn std::error::Error>> {
-    let token = std::env::var("SLACK_TOKEN").unwrap();
+    let token = std::env::var("SLACK_TOKEN")?;
     let body = reqwest::get(&format!(
-        "{}?user={}&token={}",
-        USER_DETAILS_URL, username, token
+        "{}{}?user={}&token={}",
+        SLACK_HOST, USER_DETAILS, username, token
     ))?
     .text()?;
 
@@ -98,24 +99,21 @@ pub fn get_user_details(username: &str) -> Result<UserProfile, Box<dyn std::erro
 
 pub fn send_config_dialog(
     event: SlackSlashEvent,
-    user: Option<&User>,
+    user: Option<User>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let token = std::env::var("SLACK_TOKEN").unwrap();
 
-    let channel = match user {
-        Some(u) => match u.channel.as_ref() {
-            Some(channel) => channel,
-            None => "",
-        },
-        None => "",
-    };
+    let (channel, reminder) = match user {
+        Some(u) => {
+            let channel = u.channel.unwrap_or(String::from(""));
+            let reminder = match u.reminder {
+                Some(date) => date.to_string(),
+                None => String::from(""),
+            };
 
-    let reminder = match user {
-        Some(u) => match u.reminder {
-            Some(date) => date.to_string(),
-            None => "".to_string(),
-        },
-        None => "".to_string(),
+            (channel, reminder)
+        }
+        None => (String::from(""), String::from("")),
     };
 
     let payload = json!({
@@ -166,7 +164,7 @@ pub fn send_config_dialog(
 
     let client = reqwest::Client::new();
     client
-        .post(POST_DIALOG_URL)
+        .post(&format!("{}{}", SLACK_HOST, POST_DIALOG))
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", token))
         .send()?;

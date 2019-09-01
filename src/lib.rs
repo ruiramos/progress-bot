@@ -1,12 +1,20 @@
 #[macro_use]
 extern crate serde_derive;
 extern crate chrono;
+#[macro_use]
+extern crate diesel;
 
 pub mod handle;
+pub mod models;
+pub mod schema;
 pub mod slack;
-use chrono::prelude::*;
+
+use self::models::{NewStandup, NewUser, Standup, User};
+use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use diesel::prelude::*;
 use rocket::request::FromForm;
-use std::collections::HashMap;
+use schema::standups;
+use schema::users;
 
 #[derive(Deserialize, Debug)]
 pub struct SlackEvent {
@@ -57,33 +65,103 @@ pub struct SlackConfigResponse {
     pub payload: String,
 }
 
-#[derive(Debug)]
-pub struct User {
-    username: String,
-    channel: Option<String>,
-    reminder: Option<DateTime<Utc>>,
-    real_name: Option<String>,
-    avatar_url: Option<String>,
-}
+pub fn create_user(username: &str, conn: &PgConnection) -> User {
+    let details = slack::get_user_details(username);
 
-impl User {
-    pub fn new(username: &str) -> User {
-        User {
-            username: String::from(username),
-            channel: None,
-            reminder: None,
-            real_name: None,
-            avatar_url: None,
+    match details {
+        Ok(details) => {
+            let new_user = NewUser {
+                username,
+                avatar_url: &details.image_48,
+                real_name: &details.real_name,
+            };
+
+            diesel::insert_into(users::table)
+                .values(&new_user)
+                .get_result(conn)
+                .expect("Error saving new User")
+        }
+        Err(_) => {
+            let new_user = NewUser {
+                username,
+                avatar_url: &"".to_string(),
+                real_name: &"".to_string(),
+            };
+            diesel::insert_into(users::table)
+                .values(&new_user)
+                .get_result(conn)
+                .expect("Error saving new User")
         }
     }
-
-    pub fn update_config(&mut self, config: &SlackConfig) {
-        self.channel = config.submission.channel.clone();
-        //self.reminder = Some(config.submission.reminder);
-    }
 }
 
-pub type UserList = HashMap<String, User>;
+pub fn get_user(un: &str, conn: &PgConnection) -> Option<User> {
+    users::table
+        .filter(users::username.eq(un))
+        .first::<User>(conn)
+        .optional()
+        .expect("Error getting user")
+}
+
+pub fn update_user(user: &mut User, conn: &PgConnection) -> User {
+    diesel::update(users::table)
+        .set(&*user)
+        .get_result(conn)
+        .expect("Error updating User")
+}
+
+pub fn get_latest_standup_for_user(user: &str, conn: &PgConnection) -> Option<Standup> {
+    standups::table
+        .filter(standups::username.eq(user))
+        .order_by(standups::date.desc())
+        .first::<Standup>(conn)
+        .optional()
+        .expect("Error getting latest standup for user")
+}
+
+pub fn get_todays_standup_for_user(user: &str, conn: &PgConnection) -> Option<Standup> {
+    let now = Utc::now();
+    let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
+    let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+    let today = NaiveDateTime::new(d, t);
+
+    standups::table
+        .filter(standups::username.eq(user))
+        .filter(standups::date.eq(today))
+        .first::<Standup>(conn)
+        .optional()
+        .expect("Error getting latest standup for user")
+}
+
+pub fn remove_todays_standup_for_user(user: &str, conn: &PgConnection) {
+    let now = Utc::now();
+    let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
+    let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+    let today = NaiveDateTime::new(d, t);
+
+    diesel::delete(
+        standups::table
+            .filter(standups::username.eq(user))
+            .filter(standups::date.eq(today)),
+    )
+    .execute(conn)
+    .expect("Error deleting standup");
+}
+
+pub fn create_standup(username: &str, conn: &PgConnection) -> Standup {
+    let new_standup = NewStandup::new(username);
+    diesel::insert_into(standups::table)
+        .values(&new_standup)
+        .get_result(conn)
+        .expect("Error saving new Standup")
+}
+
+pub fn update_standup(standup: Standup, conn: &PgConnection) -> Standup {
+    diesel::update(standups::table)
+        .set(&standup)
+        .get_result(conn)
+        .expect("Error updating Standup")
+}
 
 pub enum StandupState {
     PrevDay,
@@ -92,193 +170,131 @@ pub enum StandupState {
     Complete,
 }
 
-#[derive(Debug)]
-pub struct Standup {
-    user: String,
-    date: Date<Utc>,
-
-    // not sure if it would be better to encapsulate this?
-    prev_day: Option<String>,
-    day: Option<String>,
-    blocker: Option<String>,
-}
-
-impl Standup {
-    pub fn new(user: &str) -> Standup {
-        Standup {
-            user: String::from(user),
-            date: Utc::now().date(),
-            prev_day: None,
-            day: None,
-            blocker: None,
-        }
-    }
-
-    pub fn get_state(&self) -> StandupState {
-        if self.prev_day.is_none() {
-            StandupState::PrevDay
-        } else if self.day.is_none() {
-            StandupState::Today
-        } else if self.blocker.is_none() {
-            StandupState::Blocker
-        } else {
-            StandupState::Complete
-        }
-    }
-
-    pub fn add_content(&mut self, content: &str) {
-        match self.get_state() {
-            StandupState::PrevDay => self.prev_day = Some(content.to_string()),
-            StandupState::Today => self.day = Some(content.to_string()),
-            StandupState::Blocker => self.blocker = Some(content.to_string()),
-            _ => (),
-        }
-    }
-
-    pub fn get_copy(&self, channel: &Option<String>) -> String {
-        match self.get_state() {
-            StandupState::PrevDay => {
-                ":two: What are you going to be focusing on *today*?".to_string()
-            }
-            StandupState::Today => ":three: Any blockers impacting your work?".to_string(),
-            StandupState::Blocker => {
-                let extra = match channel {
-                    None => String::from(""),
-                    Some(channel) => format!(
-                        "Additionally, I've shared the standup notes to <#{}>.",
-                        channel
-                    ),
-                };
-
-                format!(":white_check_mark: *All done here!* {}\n\n Thank you, have a great day and talk to you {}.",
-                    extra, "tomorrow"
-                )
-            }
-            StandupState::Complete => {
-                "You're done for today, off to work you go now! :nerd_face:".to_string()
-            }
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct StandupList {
-    list: Vec<Standup>,
-}
-
-impl StandupList {
-    pub fn new() -> StandupList {
-        StandupList::default()
-    }
-
-    pub fn add_standup(&mut self, s: Standup) {
-        self.list.push(s);
-    }
-
-    pub fn get_todays_mut(&mut self, user: &str) -> Option<&mut Standup> {
-        let today = Utc::now().date();
-        self.list
-            .iter_mut()
-            .filter(|standup| standup.user == user && standup.date == today)
-            .take(1)
-            .next()
-    }
-
-    pub fn get_latest(&self, user: &str) -> Option<&Standup> {
-        let mut lower_date = Utc.ymd(1990, 1, 1);
-        self.list
-            .iter()
-            .filter(|standup| standup.user == user)
-            .fold(None, |acc, x| {
-                if x.date > lower_date {
-                    lower_date = x.date;
-                    Some(x)
-                } else {
-                    acc
-                }
-            })
-    }
-
-    pub fn remove_todays_from_user(&mut self, user: &str) {
-        let today = Utc::now().date();
-        self.list.retain(|s| s.user != user && s.date != today);
-    }
-}
-
 #[cfg(test)]
 mod test {
-    use crate::{Standup, StandupList};
-    use chrono::prelude::*;
+    use crate::schema::standups;
+    use crate::{
+        create_standup, create_user, get_latest_standup_for_user, get_todays_standup_for_user,
+        NewStandup, Standup,
+    };
+    use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+    use diesel::prelude::*;
 
-    #[test]
-    fn create_standup_list() {
-        let sl = StandupList::new();
-        assert_eq!(sl.list.len(), 0);
+    fn get_db() -> PgConnection {
+        PgConnection::establish("postgres://diesel:password@localhost:5433/diesel").unwrap()
     }
 
     #[test]
-    fn add_standup_to_list() {
-        let user = "ruiramos";
-        let mut sl = StandupList::new();
-        let s = Standup::new(user);
+    fn test_create_standup() {
+        let username = "ruiramos";
+        let conn = get_db();
+        conn.begin_test_transaction().unwrap();
 
-        sl.add_standup(s);
+        let standup = create_standup(username, &conn);
 
-        assert_eq!(sl.list.len(), 1);
+        let now = Utc::now();
+        let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
+        let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+        let today = NaiveDateTime::new(d, t);
+
+        assert_eq!(standup.username, username);
+        assert_eq!(standup.date, today);
     }
 
     #[test]
-    fn get_todays_standup() {
-        let user = "ruiramos";
-        let user2 = "ruiramos2";
+    fn test_create_user() {
+        let username = "ruiramos";
+        let conn = get_db();
+        conn.begin_test_transaction().unwrap();
 
-        let mut sl = StandupList::new();
+        let user = create_user(username, &conn);
 
-        let s = Standup::new(user);
-        let s2 = Standup::new(user);
-        let mut s3 = Standup::new(user);
-        let s2_1 = Standup::new(user2);
-        let s2_2 = Standup::new(user2);
-
-        s3.date = Utc.ymd(2020, 1, 15);
-
-        sl.add_standup(s);
-        sl.add_standup(s2);
-        sl.add_standup(s3);
-        sl.add_standup(s2_1);
-        sl.add_standup(s2_2);
-
-        let result = sl.get_todays_mut(user).unwrap();
-
-        assert_eq!(result.date, Utc::now().date());
+        assert_eq!(user.username, username);
     }
 
     #[test]
-    fn get_latest_standup() {
-        let user = "ruiramos";
-        let user2 = "ruiramos2";
+    fn test_get_todays_standup() {
+        let username = "ruiramos";
+        let conn = get_db();
+        conn.begin_test_transaction().unwrap();
 
-        let mut sl = StandupList::new();
+        let standup = create_standup(username, &conn);
+        let result = get_todays_standup_for_user(username, &conn);
 
-        let mut s = Standup::new(user);
-        let mut s2 = Standup::new(user);
-        let mut s3 = Standup::new(user);
-        let s2_1 = Standup::new(user2);
-        let s2_2 = Standup::new(user2);
+        assert_eq!(standup.id, result.unwrap().id);
+    }
 
-        s.date = Utc.ymd(2011, 1, 1);
-        // this is actually the latest one:
-        s2.date = Utc.ymd(2011, 2, 1);
-        s3.date = Utc.ymd(2011, 1, 15);
+    #[test]
+    fn test_get_latest_standup() {
+        let username = "ruiramos";
+        let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+        let standup1 = NewStandup {
+            username: username.to_string(),
+            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 02, 05), t),
+        };
+        let standup2 = NewStandup {
+            username: username.to_string(),
+            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 01, 22), t),
+        };
 
-        sl.add_standup(s);
-        sl.add_standup(s2);
-        sl.add_standup(s3);
-        sl.add_standup(s2_1);
-        sl.add_standup(s2_2);
+        let conn = get_db();
+        conn.begin_test_transaction().unwrap();
 
-        let result = sl.get_latest(user).unwrap();
+        let s1_insert: Standup = diesel::insert_into(standups::table)
+            .values(&standup1)
+            .get_result(&conn)
+            .expect("Error saving new Standup");
 
-        assert_eq!(result.date, Utc.ymd(2011, 2, 1));
+        let _s2_insert: Standup = diesel::insert_into(standups::table)
+            .values(&standup2)
+            .get_result(&conn)
+            .expect("Error saving new Standup");
+
+        let result = get_latest_standup_for_user(username, &conn);
+
+        assert_eq!(result.unwrap().date, s1_insert.date);
+    }
+
+    #[test]
+    fn test_get_todays_standup_not_found() {
+        let username = "ruiramos";
+        let conn = get_db();
+        conn.begin_test_transaction().unwrap();
+
+        let result = get_todays_standup_for_user(username, &conn);
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_todays_standup_not_found_2() {
+        let username = "ruiramos";
+        let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+
+        let standup1 = NewStandup {
+            username: username.to_string(),
+            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 02, 05), t),
+        };
+        let standup2 = NewStandup {
+            username: username.to_string(),
+            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 01, 22), t),
+        };
+
+        let conn = get_db();
+        conn.begin_test_transaction().unwrap();
+
+        diesel::insert_into(standups::table)
+            .values(&standup1)
+            .get_result::<Standup>(&conn)
+            .expect("Error saving new Standup");
+
+        diesel::insert_into(standups::table)
+            .values(&standup2)
+            .get_result::<Standup>(&conn)
+            .expect("Error saving new Standup");
+
+        let result = get_todays_standup_for_user(username, &conn);
+
+        assert!(result.is_none());
     }
 }
