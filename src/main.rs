@@ -24,8 +24,8 @@ fn index() -> &'static str {
     "Hello, world!"
 }
 
-#[get("/oauth?<code>&<state>")]
-fn oauth(code: String, state: Option<String>, conn: DbConn) -> String {
+#[get("/oauth?<code>")]
+fn oauth(code: String, conn: DbConn) -> String {
     let oauth_response = slack::get_token_with_code(code).unwrap();
     create_or_update_team_info(oauth_response, &*conn);
     "".to_string()
