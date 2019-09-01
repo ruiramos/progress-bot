@@ -9,16 +9,18 @@ pub mod models;
 pub mod schema;
 pub mod slack;
 
-use self::models::{NewStandup, NewUser, Standup, User};
+use self::models::{NewStandup, NewTeam, NewUser, Standup, Team, User};
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use diesel::prelude::*;
 use rocket::request::FromForm;
 use schema::standups;
+use schema::teams;
 use schema::users;
 
 #[derive(Deserialize, Debug)]
 pub struct SlackEvent {
     pub token: String,
+    pub team_id: String,
     pub challenge: Option<String>,
     pub event: Option<EventDetails>,
 }
@@ -29,6 +31,7 @@ pub struct SlackSlashEvent {
     pub response_url: String,
     pub trigger_id: String,
     pub user_id: String,
+    pub team_id: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -47,6 +50,12 @@ pub struct SlackConfigResource {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct SlackConfigTeam {
+    pub id: String,
+    pub domain: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SlackConfigSubmission {
     pub reminder: Option<String>,
     pub channel: Option<String>,
@@ -55,6 +64,7 @@ pub struct SlackConfigSubmission {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SlackConfig {
     pub user: SlackConfigResource,
+    pub team: SlackConfigTeam,
     pub channel: SlackConfigResource,
     pub submission: SlackConfigSubmission,
     pub response_url: String,
@@ -65,13 +75,29 @@ pub struct SlackConfigResponse {
     pub payload: String,
 }
 
-pub fn create_user(username: &str, conn: &PgConnection) -> User {
-    let details = slack::get_user_details(username);
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SlackOauthResponse {
+    pub access_token: String,
+    pub team_id: String,
+    pub team_name: String,
+    pub bot: SlackOauthBotInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SlackOauthBotInfo {
+    pub bot_user_id: String,
+    pub bot_access_token: String,
+}
+
+pub fn create_user(username: &str, team_id: &str, conn: &PgConnection) -> User {
+    let token = get_bot_token_for_team(team_id, conn);
+    let details = slack::get_user_details(username, token);
 
     match details {
         Ok(details) => {
             let new_user = NewUser {
                 username,
+                team_id,
                 avatar_url: &details.image_48,
                 real_name: &details.real_name,
             };
@@ -84,6 +110,7 @@ pub fn create_user(username: &str, conn: &PgConnection) -> User {
         Err(_) => {
             let new_user = NewUser {
                 username,
+                team_id,
                 avatar_url: &"".to_string(),
                 real_name: &"".to_string(),
             };
@@ -163,6 +190,40 @@ pub fn update_standup(standup: Standup, conn: &PgConnection) -> Standup {
         .expect("Error updating Standup")
 }
 
+pub fn create_or_update_team_info(res: SlackOauthResponse, conn: &PgConnection) {
+    let team = teams::table
+        .filter(teams::team_id.eq(&res.team_id))
+        .first::<Team>(conn)
+        .optional()
+        .expect("Error getting team");
+
+    if team.is_none() {
+        let new_team = NewTeam {
+            access_token: res.access_token,
+            team_id: res.team_id,
+            team_name: res.team_name,
+            bot_user_id: res.bot.bot_user_id,
+            bot_access_token: res.bot.bot_access_token,
+        };
+
+        diesel::insert_into(teams::table)
+            .values(&new_team)
+            .get_result::<Team>(conn)
+            .expect("Error creating a new team");
+    } else {
+        // ? not sure should we update or create a new one is there a point?
+    }
+}
+
+pub fn get_bot_token_for_team(team_id: &str, conn: &PgConnection) -> String {
+    let team = teams::table
+        .filter(teams::team_id.eq(team_id))
+        .first::<Team>(conn)
+        .expect("Error getting team");
+
+    team.bot_access_token
+}
+
 pub enum StandupState {
     PrevDay,
     Today,
@@ -204,10 +265,11 @@ mod test {
     #[test]
     fn test_create_user() {
         let username = "ruiramos";
+        let team_id = "abc";
         let conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        let user = create_user(username, &conn);
+        let user = create_user(username, team_id, &conn);
 
         assert_eq!(user.username, username);
     }

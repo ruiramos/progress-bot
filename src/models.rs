@@ -1,4 +1,5 @@
 use crate::schema::standups;
+use crate::schema::teams;
 use crate::schema::users;
 use crate::StandupState;
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -11,6 +12,7 @@ pub struct User {
     pub reminder: Option<NaiveDateTime>,
     pub real_name: String,
     pub avatar_url: String,
+    pub team_id: String,
 }
 
 #[derive(Insertable)]
@@ -19,6 +21,7 @@ pub struct NewUser<'a> {
     pub username: &'a str,
     pub real_name: &'a str,
     pub avatar_url: &'a str,
+    pub team_id: &'a str,
 }
 
 #[derive(Debug, Queryable, AsChangeset)]
@@ -98,4 +101,24 @@ impl NewStandup {
             date: today,
         }
     }
+}
+
+#[derive(Debug, Queryable, AsChangeset, Insertable)]
+pub struct Team {
+    pub id: i32,
+    pub access_token: String,
+    pub team_id: String,
+    pub team_name: String,
+    pub bot_user_id: String,
+    pub bot_access_token: String,
+}
+
+#[derive(Insertable)]
+#[table_name = "teams"]
+pub struct NewTeam {
+    pub access_token: String,
+    pub team_id: String,
+    pub team_name: String,
+    pub bot_user_id: String,
+    pub bot_access_token: String,
 }

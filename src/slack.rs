@@ -1,5 +1,7 @@
+extern crate base64;
 extern crate reqwest;
-use crate::{SlackSlashEvent, Standup, User};
+
+use crate::{SlackOauthResponse, SlackSlashEvent, Standup, User};
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -8,9 +10,13 @@ const SLACK_HOST: &str = "https://slack.com";
 const POST_MESSAGE: &str = "/api/chat.postMessage";
 const POST_DIALOG: &str = "/api/dialog.open";
 const USER_DETAILS: &str = "/api/users.info";
+const OAUTH_ACCESS: &str = "/api/oauth.access";
 
-pub fn send_message(message: String, channel: String) -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("SLACK_TOKEN").unwrap();
+pub fn send_message(
+    message: String,
+    channel: String,
+    token: String,
+) -> Result<(), Box<dyn std::error::Error>> {
     let payload = json!({
         "text": message,
         "channel": channel,
@@ -33,8 +39,8 @@ pub fn send_standup_to_channel(
     ts: i64,
     standup: &Standup,
     user: &User,
+    token: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("SLACK_TOKEN").unwrap();
     let payload = json!({
         "channel": channel,
         "attachments": [{
@@ -85,8 +91,10 @@ pub struct UserProfile {
     pub real_name: String,
 }
 
-pub fn get_user_details(username: &str) -> Result<UserProfile, Box<dyn std::error::Error>> {
-    let token = std::env::var("SLACK_TOKEN")?;
+pub fn get_user_details(
+    username: &str,
+    token: String,
+) -> Result<UserProfile, Box<dyn std::error::Error>> {
     let body = reqwest::get(&format!(
         "{}{}?user={}&token={}",
         SLACK_HOST, USER_DETAILS, username, token
@@ -100,9 +108,8 @@ pub fn get_user_details(username: &str) -> Result<UserProfile, Box<dyn std::erro
 pub fn send_config_dialog(
     event: SlackSlashEvent,
     user: Option<User>,
+    token: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("SLACK_TOKEN").unwrap();
-
     let (channel, reminder) = match user {
         Some(u) => {
             let channel = u.channel.unwrap_or(String::from(""));
@@ -172,8 +179,11 @@ pub fn send_config_dialog(
     Ok(())
 }
 
-pub fn send_response(copy: &str, response_url: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let token = std::env::var("SLACK_TOKEN").unwrap();
+pub fn send_response(
+    copy: &str,
+    response_url: &str,
+    token: String,
+) -> Result<(), Box<dyn std::error::Error>> {
     let payload = json!({
         "text": copy.to_string(),
         "response_type": "ephemeral"
@@ -187,4 +197,24 @@ pub fn send_response(copy: &str, response_url: &str) -> Result<(), Box<dyn std::
         .send()?;
 
     Ok(())
+}
+
+pub fn get_token_with_code(code: String) -> Result<SlackOauthResponse, Box<dyn std::error::Error>> {
+    let client_id = std::env::var("CLIENT_ID").expect("CLIENT_ID missing");
+    let client_secret = std::env::var("CLIENT_SECRET").expect("CLIENT_SECRET missing");
+    let token = base64::encode(&format!("{}:{}", client_id, client_secret));
+
+    let payload = json!({ "code": code });
+
+    let client = reqwest::Client::new();
+    let body = client
+        .post(&format!("{}{}", SLACK_HOST, OAUTH_ACCESS))
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .json(&payload)
+        .send()?
+        .text()?;
+
+    let res: SlackOauthResponse = serde_json::from_str(&body).unwrap();
+
+    Ok(res)
 }

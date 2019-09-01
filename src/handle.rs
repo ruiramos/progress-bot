@@ -1,7 +1,8 @@
 use crate::slack;
 use crate::{
-    create_standup, create_user, get_latest_standup_for_user, get_todays_standup_for_user,
-    get_user, remove_todays_standup_for_user, update_standup, update_user,
+    create_standup, create_user, get_bot_token_for_team, get_latest_standup_for_user,
+    get_todays_standup_for_user, get_user, remove_todays_standup_for_user, update_standup,
+    update_user,
 };
 use crate::{EventDetails, SlackConfig, Standup, StandupState, User};
 use chrono::Local;
@@ -10,10 +11,10 @@ pub fn challenge(c: String) -> String {
     c
 }
 
-pub fn event(evt: EventDetails, conn: &diesel::PgConnection) -> (String, String) {
+pub fn event(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (String, String) {
     let user = match get_user(&evt.user, conn) {
         Some(user) => user,
-        None => create_user(&evt.user, conn),
+        None => create_user(&evt.user, team_id, conn),
     };
 
     if evt.r#type == "message" {
@@ -40,7 +41,7 @@ pub fn react(evt: EventDetails, user: User, conn: &diesel::PgConnection) -> (Str
                 StandupState::Blocker => {
                     todays.add_content(&msg);
                     if user.channel.is_some() {
-                        share_standup(&user, &todays);
+                        share_standup(&user, &todays, &conn);
                     }
                 }
                 _ => todays.add_content(&msg),
@@ -69,7 +70,7 @@ pub fn react_notification(
     (copy, evt.user)
 }
 
-pub fn share_standup(user: &User, standup: &Standup) {
+pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection) {
     let msg = ":newspaper: Here's the latest:";
     slack::send_standup_to_channel(
         user.channel.as_ref().unwrap(),
@@ -77,6 +78,7 @@ pub fn share_standup(user: &User, standup: &Standup) {
         Local::now().timestamp(),
         standup,
         user,
+        get_bot_token_for_team(&user.team_id, conn),
     )
     .unwrap();
 }
@@ -84,7 +86,7 @@ pub fn share_standup(user: &User, standup: &Standup) {
 pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
     let mut user = match get_user(&config.user.id, conn) {
         Some(user) => user,
-        None => create_user(&config.user.id, conn),
+        None => create_user(&config.user.id, &config.team.id, conn),
     };
 
     user.channel = config.submission.channel.clone();
