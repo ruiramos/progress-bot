@@ -210,10 +210,11 @@ pub fn get_token_with_code(code: String) -> Result<SlackOauthResponse, Box<dyn s
     let body = client
         .post(&format!("{}{}", SLACK_HOST, OAUTH_ACCESS))
         .header(AUTHORIZATION, format!("Bearer {}", token))
-        .json(&payload)
+        .form(&payload)
         .send()?
         .text()?;
 
+    println!("{:?}", body);
     let res: SlackOauthResponse = serde_json::from_str(&body).unwrap();
 
     Ok(res)
