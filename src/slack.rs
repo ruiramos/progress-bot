@@ -202,19 +202,17 @@ pub fn send_response(
 pub fn get_token_with_code(code: String) -> Result<SlackOauthResponse, Box<dyn std::error::Error>> {
     let client_id = std::env::var("CLIENT_ID").expect("CLIENT_ID missing");
     let client_secret = std::env::var("CLIENT_SECRET").expect("CLIENT_SECRET missing");
-    let token = base64::encode(&format!("{}:{}", client_id, client_secret));
 
     let payload = [("code", code)];
 
     let client = reqwest::Client::new();
     let body = client
         .post(&format!("{}{}", SLACK_HOST, OAUTH_ACCESS))
-        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .basic_auth(client_id, Some(client_secret))
         .form(&payload)
         .send()?
         .text()?;
 
-    println!("{:?}", body);
     let res: SlackOauthResponse = serde_json::from_str(&body).unwrap();
 
     Ok(res)
