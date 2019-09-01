@@ -204,7 +204,7 @@ pub fn get_token_with_code(code: String) -> Result<SlackOauthResponse, Box<dyn s
     let client_secret = std::env::var("CLIENT_SECRET").expect("CLIENT_SECRET missing");
     let token = base64::encode(&format!("{}:{}", client_id, client_secret));
 
-    let payload = ("code", code);
+    let payload = [("code", code)];
 
     let client = reqwest::Client::new();
     let body = client
