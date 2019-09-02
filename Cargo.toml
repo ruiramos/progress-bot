@@ -3,7 +3,7 @@ name = "progress_bot"
 version = "0.1.0"
 authors = ["ruiramos <rui@ometria.com>"]
 edition = "2018"
-default-run = "progress_bot"
+default-run = "main"
 
 [dependencies]
 rocket = "0.4.2"
