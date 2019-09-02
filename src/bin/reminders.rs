@@ -22,7 +22,7 @@ fn main() {
     let users = sql_query(
         "SELECT * FROM users \
          WHERE reminder IS NOT NULL \
-         AND extract('hour' from reminder) <= extract('hour' from now()) \
+         AND extract('hour' from reminder) == extract('hour' from now()) \
          AND (last_notified IS NULL \
          OR date_trunc('day', last_notified) != date_trunc('day', now())); ",
     )
