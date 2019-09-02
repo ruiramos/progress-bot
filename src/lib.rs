@@ -131,7 +131,7 @@ pub fn get_user(un: &str, conn: &PgConnection) -> Option<User> {
 }
 
 pub fn update_user(user: &mut User, conn: &PgConnection) -> User {
-    diesel::update(users::table)
+    diesel::update(users::table.find(user.id))
         .set(&*user)
         .get_result(conn)
         .expect("Error updating User")
@@ -184,7 +184,7 @@ pub fn create_standup(username: &str, conn: &PgConnection) -> Standup {
 }
 
 pub fn update_standup(standup: &Standup, conn: &PgConnection) -> Standup {
-    diesel::update(standups::table)
+    diesel::update(standups::table.find(standup.id))
         .set(standup)
         .get_result(conn)
         .expect("Error updating Standup")
