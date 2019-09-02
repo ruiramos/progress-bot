@@ -133,15 +133,24 @@ fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<S
         ));
 
         if let Some(prev) = &standup.prev_day {
-            text.push_str(&format!("> *Day before*: \n> {}\n", &prev));
+            text.push_str(&format!(
+                "> *Day before*: \n> {}\n",
+                &prev.replace("\n", "\n>")
+            ));
         }
 
         if let Some(day) = &standup.day {
-            text.push_str(&format!("> *That day*: \n> {}\n", &day));
+            text.push_str(&format!(
+                "> *That day*: \n> {}\n",
+                &day.replace("\n", "\n>")
+            ));
         }
 
         if let Some(blockers) = &standup.blocker {
-            text.push_str(&format!("> *Blockers*: \n> {}\n", &blockers));
+            text.push_str(&format!(
+                "> *Blockers*: \n> {}\n",
+                &blockers.replace("\n", "\n>")
+            ));
         }
     } else {
         text.push_str("This is your first time using _@progress_, welcome! We'll make this super quick for you.\n\n")
