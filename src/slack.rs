@@ -149,6 +149,9 @@ pub fn send_config_dialog(
                     "name": "reminder",
                     "value": reminder,
                     "options": [{
+                        "label": "07:00",
+                        "value": "7"
+                    },{
                         "label": "08:00",
                         "value": "8"
                     },{
@@ -164,8 +167,8 @@ pub fn send_config_dialog(
                         "label": "12:00",
                         "value": "12"
                     },{
-                        "label": "12:34",
-                        "value": "1234"
+                        "label": "13:00",
+                        "value": "13"
                     }]
                 }
             ]
