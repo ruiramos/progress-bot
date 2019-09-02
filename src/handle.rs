@@ -5,7 +5,7 @@ use crate::{
     update_user,
 };
 use crate::{EventDetails, SlackConfig, Standup, StandupState, User};
-use chrono::Local;
+use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 pub fn challenge(c: String) -> String {
     c
@@ -98,7 +98,14 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
     };
 
     user.channel = config.submission.channel.clone();
-    //user.reminder = Some(config.submission.reminder);
+
+    if let Some(reminder) = &config.submission.reminder {
+        let now = Utc::now();
+        let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
+        let t = NaiveTime::from_hms_milli(reminder.parse().unwrap(), 0, 0, 0);
+        let reminder_date = NaiveDateTime::new(d, t);
+        user.reminder = Some(reminder_date);
+    }
 
     update_user(&mut user, conn);
 
@@ -128,7 +135,7 @@ fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<S
     if let Some(standup) = &latest {
         text.push_str("Here's what you were busy with last time we met:\n\n");
         text.push_str(&format!(
-            "> *:calendar: {}*\n\n",
+            "> *:calendar:  {}*\n\n",
             standup.date.format("%A, %d %B %Y, around %I%P")
         ));
 

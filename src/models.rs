@@ -4,7 +4,8 @@ use crate::schema::users;
 use crate::StandupState;
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
-#[derive(Debug, Queryable, AsChangeset)]
+#[derive(Debug, Queryable, AsChangeset, QueryableByName)]
+#[table_name = "users"]
 pub struct User {
     pub id: i32,
     pub username: String,
@@ -13,6 +14,7 @@ pub struct User {
     pub real_name: String,
     pub avatar_url: String,
     pub team_id: String,
+    pub last_notified: Option<NaiveDateTime>,
 }
 
 #[derive(Insertable)]

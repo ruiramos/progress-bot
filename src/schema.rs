@@ -29,6 +29,7 @@ table! {
         real_name -> Varchar,
         avatar_url -> Varchar,
         team_id -> Varchar,
+        last_notified -> Nullable<Timestamp>,
     }
 }
 

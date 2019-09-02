@@ -3,6 +3,7 @@ name = "progress_bot"
 version = "0.1.0"
 authors = ["ruiramos <rui@ometria.com>"]
 edition = "2018"
+default-run = "main"
 
 [dependencies]
 rocket = "0.4.2"
@@ -14,6 +15,7 @@ chrono = "0.4"
 diesel = { version = "1.0.0", features = ["postgres", "chrono"] }
 postgres = { version = "0.15", features = ["with-chrono"] }
 base64 = "0.10.1"
+dotenv = "0.9.0"
 
 [dependencies.rocket_contrib]
 version = "0.4.2"
