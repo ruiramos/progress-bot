@@ -31,9 +31,8 @@ pub fn react(evt: EventDetails, user: User, conn: &diesel::PgConnection) -> (Str
     let copy = match todays {
         None => {
             let latest = get_latest_standup_for_user(&evt.user, conn);
-            let result = gen_standup_copy(latest);
-            create_standup(&evt.user, conn);
-            result
+            let todays = create_standup(&evt.user, conn);
+            gen_standup_copy(latest, todays, &user.channel)
         }
         Some(mut todays) => {
             if let StandupState::Complete = todays.get_state() {
@@ -123,7 +122,7 @@ pub fn remove_todays(user_id: &str, conn: &diesel::PgConnection) -> String {
 
 // copy fns
 
-fn gen_standup_copy(latest: Option<Standup>) -> String {
+fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<String>) -> String {
     let mut text = String::from("*:wave: Thanks for checking in today.*\n");
 
     if let Some(standup) = &latest {
@@ -148,9 +147,7 @@ fn gen_standup_copy(latest: Option<Standup>) -> String {
         text.push_str("This is your first time using _@progress_, welcome! We'll make this super quick for you.\n\n")
     }
 
-    text.push_str(
-        "\n:one: Firstly how did *yesterday* go? In one line, what were you able to achieve?",
-    );
+    text.push_str(&format!("\n{}", todays.get_copy(channel)));
 
     text
 }

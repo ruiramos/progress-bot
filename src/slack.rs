@@ -41,6 +41,9 @@ pub fn send_standup_to_channel(
     user: &User,
     token: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // @TODO
+    let prev_day_str = String::from("Yesterday");
+
     let payload = json!({
         "channel": channel,
         "attachments": [{
@@ -50,7 +53,7 @@ pub fn send_standup_to_channel(
             "footer": "@progress",
             "ts": ts,
             "fields": [{
-                "title": "Yesterday:",
+                "title": format!("{}:", prev_day_str),
                 "value": standup.prev_day.as_ref().unwrap(),
                 "short": false
             }, {

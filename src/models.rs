@@ -59,8 +59,13 @@ impl Standup {
     pub fn get_copy(&self, channel: &Option<String>) -> String {
         match self.get_state() {
             StandupState::PrevDay => {
-                ":one: Firstly how did *yesterday* go? In one line, what were you able to achieve?"
-                    .to_string()
+                // @TODO
+                let prev_day_str = "yesterday";
+
+                format!(
+                    ":one: Firstly how did *{}* go? In one line, what were you able to achieve?",
+                    prev_day_str
+                )
             }
             StandupState::Today => {
                 ":two: What are you going to be focusing on *today*?".to_string()
@@ -75,6 +80,7 @@ impl Standup {
                     ),
                 };
 
+                // @TODO tomorrow_str
                 format!(":white_check_mark: *All done here!* {}\n\n Thank you, have a great day and talk to you {}.",
                     extra, "tomorrow"
                 )
