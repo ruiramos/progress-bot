@@ -2,6 +2,7 @@ extern crate base64;
 extern crate reqwest;
 
 use crate::{SlackOauthResponse, SlackSlashEvent, Standup, User};
+use chrono::Timelike;
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -117,7 +118,7 @@ pub fn send_config_dialog(
         Some(u) => {
             let channel = u.channel.unwrap_or(String::from(""));
             let reminder = match u.reminder {
-                Some(date) => date.to_string(),
+                Some(date) => date.hour().to_string(),
                 None => String::from(""),
             };
 
