@@ -128,7 +128,10 @@ fn gen_standup_copy(latest: Option<Standup>) -> String {
 
     if let Some(standup) = &latest {
         text.push_str("Here's what you were busy with last time we met:\n\n");
-        text.push_str(&format!("> :calendar: {}\n\n", standup.date));
+        text.push_str(&format!(
+            "> :calendar: {}\n\n",
+            standup.date.format("%A, %d %B %Y, around %I%P")
+        ));
 
         if let Some(prev) = &standup.prev_day {
             text.push_str(&format!("> *Previous day*: {}\n", &prev));
