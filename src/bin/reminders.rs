@@ -44,7 +44,10 @@ pub fn establish_connection() -> PgConnection {
 
 pub fn notify_user(user: &User, conn: &PgConnection) {
     println!("notify! {}", user.username);
-    let message = format!("Hey <#{}>, time for your standup today! :)", user.username);
+    let message = format!(
+        "Hey <@{}>, is this a good time for your standup today? :)",
+        user.username
+    );
     let token = get_bot_token_for_team(&user.team_id, conn);
     slack::send_message(message, user.username.to_string(), token)
         .expect(&format!("Failed to notify user {}", user.username));

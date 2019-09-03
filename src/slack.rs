@@ -118,6 +118,7 @@ pub fn send_config_dialog(
         Some(u) => {
             let channel = u.channel.unwrap_or(String::from(""));
             let reminder = match u.reminder {
+                // @TODO timezones
                 Some(date) => (date.hour() + 1).to_string(),
                 None => String::from(""),
             };
