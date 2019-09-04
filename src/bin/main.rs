@@ -28,7 +28,7 @@ fn index() -> &'static str {
 fn oauth(code: String, conn: DbConn) -> String {
     let oauth_response = slack::get_token_with_code(code).unwrap();
     create_or_update_team_info(oauth_response, &*conn);
-    "".to_string()
+    "that worked".to_string()
 }
 
 #[post("/show-config", data = "<content>")]
