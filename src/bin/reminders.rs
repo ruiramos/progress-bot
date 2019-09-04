@@ -29,7 +29,9 @@ fn main() {
          SELECT * FROM standups s \
          WHERE s.username = u.username \
          AND date_trunc('day', s.date) = date_trunc('day', now()) \
-         );",
+         ) \
+         AND extract('dow' from now()) != 0 \
+         AND extract('dow' from now()) != 6;",
     )
     .load::<User>(&conn)
     .expect("Error loading users");
