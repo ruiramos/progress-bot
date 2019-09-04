@@ -20,11 +20,16 @@ fn main() {
     let conn = establish_connection();
 
     let users = sql_query(
-        "SELECT * FROM users \
+        "SELECT * FROM users u \
          WHERE reminder IS NOT NULL \
          AND extract('hour' from reminder) = extract('hour' from now()) \
          AND (last_notified IS NULL \
-         OR date_trunc('day', last_notified) != date_trunc('day', now())); ",
+         OR date_trunc('day', last_notified) != date_trunc('day', now())) \
+         AND NOT EXISTS ( \
+         SELECT * FROM standups s \
+         WHERE s.username = u.username \
+         AND date_trunc('day', s.date) = date_trunc('day', now()) \
+         );",
     )
     .load::<User>(&conn)
     .expect("Error loading users");
