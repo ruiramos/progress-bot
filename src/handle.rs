@@ -138,7 +138,7 @@ fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<S
         text.push_str("Here's what you were busy with last time we met:\n\n");
         text.push_str(&format!(
             "> *:calendar:  {}*\n\n",
-            standup.date.format("%A, %d %B %Y, around %I%P")
+            format_date(standup.date)
         ));
 
         if let Some(prev) = &standup.prev_day {
@@ -168,4 +168,15 @@ fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<S
     text.push_str(&format!("\n{}", todays.get_copy(channel)));
 
     text
+}
+
+fn format_date(date: NaiveDateTime) -> String {
+    let now = Utc::now();
+    if date.num_days_from_ce() + 1 == now.num_days_from_ce() {
+        date.format("Yesterday, around %I%P").to_string()
+    } else if date.num_days_from_ce() + 7 > now.num_days_from_ce() {
+        date.format("Last %A, around %I%P").to_string()
+    } else {
+        date.format("%A, %d %B %Y, around %I%P").to_string()
+    }
 }
