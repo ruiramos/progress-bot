@@ -175,7 +175,13 @@ fn format_date(date: NaiveDateTime) -> String {
     if date.num_days_from_ce() + 1 == now.num_days_from_ce() {
         date.format("Yesterday, around %I%P").to_string()
     } else if date.num_days_from_ce() + 7 > now.num_days_from_ce() {
-        date.format("Last %A, around %I%P").to_string()
+        if now.weekday().num_days_from_monday() > date.weekday().num_days_from_monday() {
+            // same week
+            date.format("This %A, around %I%P").to_string()
+        } else {
+            // last week
+            date.format("Last %A, around %I%P").to_string()
+        }
     } else {
         date.format("%A, %d %B %Y, around %I%P").to_string()
     }
