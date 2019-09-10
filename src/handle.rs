@@ -112,7 +112,7 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
     update_user(&mut user, conn);
 
     let copy = match (&config.submission.reminder, &config.submission.channel) {
-        (None, None) => "Will not remind you or post your standups anywhere else.".to_string(),
+        (None, None) => "Will not remind you or post your standups anywhere else!".to_string(),
         (None, Some(c)) => format!("Will post your standups in <#{}>.", c),
         (Some(r), None) => format!("Will remind you daily at {}.", r),
         (Some(r), Some(c)) => format!(
