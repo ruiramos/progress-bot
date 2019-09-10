@@ -129,6 +129,7 @@ fn main() {
     };
 
     rocket::custom(config)
+        .attach(DbConn::fairing())
         .mount(
             "/",
             routes![
