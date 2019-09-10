@@ -105,7 +105,8 @@ pub fn get_user_details(
     ))?
     .text()?;
 
-    let user: SlackResponse = serde_json::from_str(&body).unwrap();
+    let user: SlackResponse = serde_json::from_str(&body)?;
+
     Ok(user.user.profile)
 }
 
