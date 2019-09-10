@@ -9,11 +9,13 @@ use progress_bot::{
     create_or_update_team_info, get_bot_token_for_team, get_user, handle, slack, SlackConfig,
     SlackConfigResponse, SlackEvent, SlackSlashEvent,
 };
+use rocket::config::{Config, Environment, Value};
 use rocket::request::Form;
 use rocket::request::LenientForm;
 use rocket_contrib::databases::diesel;
 use rocket_contrib::json::Json;
 use rocket_contrib::json::JsonValue;
+use std::collections::HashMap;
 use std::thread;
 
 #[database("postgres")]
@@ -80,8 +82,51 @@ fn post_event(event: Json<SlackEvent>, conn: DbConn) -> String {
 }
 
 fn main() {
-    rocket::ignite()
-        .attach(DbConn::fairing())
+    let mut database_config = HashMap::new();
+    let mut databases = HashMap::new();
+
+    let env = std::env::var("ROCKET_ENV");
+
+    let config = match env {
+        Ok(s) => {
+            if s == String::from("production") {
+                let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL missing");
+
+                database_config.insert("url", Value::from(db_url));
+                databases.insert("postgres", Value::from(database_config));
+
+                Config::build(Environment::Production)
+                    .extra("databases", databases)
+                    .finalize()
+                    .unwrap()
+            } else {
+                database_config.insert(
+                    "url",
+                    Value::from("postgres://diesel:password@localhost:5433/diesel"),
+                );
+                databases.insert("postgres", Value::from(database_config));
+
+                Config::build(Environment::Development)
+                    .extra("databases", databases)
+                    .finalize()
+                    .unwrap()
+            }
+        }
+        _ => {
+            database_config.insert(
+                "url",
+                Value::from("postgres://diesel:password@localhost:5433/diesel"),
+            );
+            databases.insert("postgres", Value::from(database_config));
+
+            Config::build(Environment::Development)
+                .extra("databases", databases)
+                .finalize()
+                .unwrap()
+        }
+    };
+
+    rocket::custom(config)
         .mount(
             "/",
             routes![

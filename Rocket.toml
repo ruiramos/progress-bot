@@ -5,6 +5,3 @@ port = 8800
 [development.databases]
 postgres = { url = "postgres://diesel:password@localhost:5433/diesel" }
 
-[production.databases]
-postgres = { url = "postgres://upnrbsdgsznuwy:e570aa4fc75c1f067fe2ec81d556a369090467a8cf6d3ed432352fff7ce16b16@ec2-50-19-254-63.compute-1.amazonaws.com:5432/d1vtumosaqg2os" }
-
