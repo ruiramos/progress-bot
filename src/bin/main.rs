@@ -91,11 +91,13 @@ fn main() {
         Ok(s) => {
             if s == String::from("production") {
                 let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL missing");
+                let port = std::env::var("PORT").expect("PORT missing");
 
                 database_config.insert("url", Value::from(db_url));
                 databases.insert("postgres", Value::from(database_config));
 
                 Config::build(Environment::Production)
+                    .port(port.parse().unwrap())
                     .extra("databases", databases)
                     .finalize()
                     .unwrap()
