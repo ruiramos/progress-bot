@@ -88,31 +88,18 @@ fn main() {
     let env = std::env::var("ROCKET_ENV");
 
     let config = match env {
-        Ok(s) => {
-            if s == String::from("production") {
-                let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL missing");
-                let port = std::env::var("PORT").expect("PORT missing");
+        Ok(ref s) if s == "production" => {
+            let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL missing");
+            let port = std::env::var("PORT").expect("PORT missing");
 
-                database_config.insert("url", Value::from(db_url));
-                databases.insert("postgres", Value::from(database_config));
+            database_config.insert("url", Value::from(db_url));
+            databases.insert("postgres", Value::from(database_config));
 
-                Config::build(Environment::Production)
-                    .port(port.parse().unwrap())
-                    .extra("databases", databases)
-                    .finalize()
-                    .unwrap()
-            } else {
-                database_config.insert(
-                    "url",
-                    Value::from("postgres://diesel:password@localhost:5433/diesel"),
-                );
-                databases.insert("postgres", Value::from(database_config));
-
-                Config::build(Environment::Development)
-                    .extra("databases", databases)
-                    .finalize()
-                    .unwrap()
-            }
+            Config::build(Environment::Production)
+                .port(port.parse().unwrap())
+                .extra("databases", databases)
+                .finalize()
+                .unwrap()
         }
         _ => {
             database_config.insert(
