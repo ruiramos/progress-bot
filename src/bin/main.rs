@@ -65,7 +65,8 @@ fn post_remove_todays(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> Js
 fn post_help(_content: LenientForm<SlackSlashEvent>) -> JsonValue {
     json!({ "text": "Hi, I'm the @progress bot and I'm here to help you with your daily standups! :wave:
 You can mention me or chat at any time to start telling me about your day. If you want me to post your standups in a channel or to set a daily reminder, run `/progress-config`.
-If you get something wrong just run `/progress-forget` and try again. All your daily standups become available in https://web.progressbot.net as well so you can track your progress. Enjoy! :pray:" })
+If you get something wrong just run `/progress-forget` and try again. 
+All your daily standups become available in https://web.progressbot.net as well so you can track your progress. Enjoy! :pray:" })
 }
 
 #[post("/", data = "<event>")]
