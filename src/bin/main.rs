@@ -132,6 +132,7 @@ fn main() {
                 post_config,
                 post_event,
                 post_remove_todays,
+                post_help,
                 oauth
             ],
         )
