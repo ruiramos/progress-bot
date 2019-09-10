@@ -235,8 +235,9 @@ pub enum StandupState {
 mod test {
     use crate::schema::standups;
     use crate::{
-        create_standup, create_user, get_latest_standup_for_user, get_todays_standup_for_user,
-        NewStandup, Standup,
+        create_or_update_team_info, create_standup, create_user, get_bot_token_for_team,
+        get_latest_standup_for_user, get_todays_standup_for_user, NewStandup, SlackOauthBotInfo,
+        SlackOauthResponse, Standup,
     };
     use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
     use diesel::prelude::*;
@@ -263,12 +264,45 @@ mod test {
     }
 
     #[test]
-    fn test_create_user() {
-        let username = "ruiramos";
+    fn test_create_team() {
         let team_id = "abc";
+        let oauth_response = SlackOauthResponse {
+            access_token: "asd".to_string(),
+            team_id: team_id.to_string(),
+            team_name: "A.B.C".to_string(),
+            bot: SlackOauthBotInfo {
+                bot_access_token: "111".to_string(),
+                bot_user_id: "222".to_string(),
+            },
+        };
+
         let conn = get_db();
         conn.begin_test_transaction().unwrap();
 
+        create_or_update_team_info(oauth_response, &conn);
+        let token = get_bot_token_for_team(team_id, &conn);
+
+        assert_eq!(token, "111");
+    }
+
+    #[test]
+    fn test_create_user() {
+        let username = "ruiramos";
+        let team_id = "abc";
+        let oauth_response = SlackOauthResponse {
+            access_token: "asd".to_string(),
+            team_id: team_id.to_string(),
+            team_name: "A.B.C".to_string(),
+            bot: SlackOauthBotInfo {
+                bot_access_token: "111".to_string(),
+                bot_user_id: "222".to_string(),
+            },
+        };
+
+        let conn = get_db();
+        conn.begin_test_transaction().unwrap();
+
+        create_or_update_team_info(oauth_response, &conn);
         let user = create_user(username, team_id, &conn);
 
         assert_eq!(user.username, username);
