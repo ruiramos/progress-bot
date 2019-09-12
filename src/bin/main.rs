@@ -10,8 +10,10 @@ use progress_bot::{
     SlackConfigResponse, SlackEvent, SlackSlashEvent,
 };
 use rocket::config::{Config, Environment, Value};
+use rocket::http::uri::Absolute;
 use rocket::request::Form;
 use rocket::request::LenientForm;
+use rocket::response::Redirect;
 use rocket_contrib::databases::diesel;
 use rocket_contrib::json::Json;
 use rocket_contrib::json::JsonValue;
@@ -27,10 +29,17 @@ fn index() -> &'static str {
 }
 
 #[get("/oauth?<code>")]
-fn oauth(code: String, conn: DbConn) -> String {
+fn oauth(code: String, conn: DbConn) -> Redirect {
     let oauth_response = slack::get_token_with_code(code).unwrap();
     create_or_update_team_info(oauth_response, &*conn);
-    "that worked".to_string()
+    let uri = Absolute::parse("https://progress.bot/success").expect("valid URI");
+    Redirect::to(uri)
+}
+
+#[get("/oauth?<error>", rank = 2)]
+fn oauth_error(error: String) -> Redirect {
+    let uri = Absolute::parse("https://progress.bot/error").expect("valid URI");
+    Redirect::to(uri)
 }
 
 #[post("/show-config", data = "<content>")]
@@ -134,7 +143,8 @@ fn main() {
                 post_event,
                 post_remove_todays,
                 post_help,
-                oauth
+                oauth,
+                oauth_error
             ],
         )
         .launch();
