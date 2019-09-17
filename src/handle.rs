@@ -68,19 +68,44 @@ pub fn react_notification(
     user: User,
     conn: &diesel::PgConnection,
 ) -> (String, String) {
-    let _msg = evt.text;
-    let todays = get_todays_standup_for_user(&evt.user, conn);
-    let copy = match todays {
-        None => "I'm here! Ready for your standup today?".to_string(),
-        Some(s) => {
-            if let StandupState::Complete = s.get_state() {
-                "You're done for today, off to work you go now! :nerd_face:".to_string()
+    let msg = evt.text;
+
+    if msg.contains("today") {
+        let todays = get_todays_standup_for_user(&evt.user, conn);
+        if let Some(standup) = todays {
+            if standup.day.is_some() {
+                (
+                    format!(
+                        "Here's what your dealing with today: \n > {}",
+                        standup.day.unwrap().replace("\n", "\n>")
+                    ),
+                    evt.channel,
+                )
             } else {
-                s.get_copy(&user.channel)
+                (format!("You still haven't told me what you'll be doing today! Please finish your standup first. \n {}", standup.get_copy(&user.channel)), evt.user)
             }
+        } else {
+            (
+                String::from("I'm here! Ready for your standup today?"),
+                evt.user,
+            )
         }
-    };
-    (copy, evt.user)
+    } else if msg.contains("done") {
+        (String::from(""), evt.user)
+    } else {
+        let todays = get_todays_standup_for_user(&evt.user, conn);
+        let copy = match todays {
+            None => "I'm here! Ready for your standup today?".to_string(),
+            Some(s) => {
+                if let StandupState::Complete = s.get_state() {
+                    "You're done for today, off to work you go now! :nerd_face:".to_string()
+                } else {
+                    s.get_copy(&user.channel)
+                }
+            }
+        };
+        (copy, evt.user)
+    }
 }
 
 pub fn react_app_home_open(

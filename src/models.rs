@@ -65,7 +65,7 @@ impl Standup {
                 let prev_day_str = "yesterday";
 
                 format!(
-                    ":one: Firstly how did *{}* go? In one line, what were you able to achieve?",
+                    ":one: Firstly how did *{}* go? What were you able to achieve? _(use shift+enter to create new lines for tasks)_",
                     prev_day_str
                 )
             }
