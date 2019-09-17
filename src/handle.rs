@@ -76,7 +76,8 @@ pub fn react_notification(
             if standup.day.is_some() {
                 (
                     format!(
-                        "Here's what your dealing with today: \n > {}",
+                        "Hey *{}*, here's what your dealing with today: \n> {}",
+                        user.real_name,
                         standup.day.unwrap().replace("\n", "\n>")
                     ),
                     evt.channel,
