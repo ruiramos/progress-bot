@@ -11,16 +11,21 @@ pub fn challenge(c: String) -> String {
     c
 }
 
-pub fn event(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (String, String) {
+pub fn event(
+    evt: EventDetails,
+    team_id: &str,
+    conn: &diesel::PgConnection,
+) -> Option<(String, String)> {
     let user = match get_user(&evt.user, conn) {
         Some(user) => user,
         None => create_user(&evt.user, team_id, conn),
     };
 
-    if evt.r#type == "message" {
-        react(evt, user, conn)
-    } else {
-        react_notification(evt, user, conn)
+    match evt.r#type.as_ref() {
+        "message" => Some(react(evt, user, conn)),
+        "app_mention" => Some(react_notification(evt, user, conn)),
+        "app_home_opened" => react_app_home_open(evt, user, conn),
+        _ => None,
     }
 }
 
@@ -76,6 +81,24 @@ pub fn react_notification(
         }
     };
     (copy, evt.user)
+}
+
+pub fn react_app_home_open(
+    evt: EventDetails,
+    _user: User,
+    conn: &diesel::PgConnection,
+) -> Option<(String, String)> {
+    let _msg = evt.text;
+    let todays = get_todays_standup_for_user(&evt.user, conn);
+
+    if todays.is_none() {
+        Some((
+            String::from("Hey there! Let me know if this is a good time for your standup today."),
+            evt.user,
+        ))
+    } else {
+        None
+    }
 }
 
 pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection) {

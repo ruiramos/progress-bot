@@ -73,8 +73,8 @@ fn post_remove_todays(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> Js
 #[post("/help", data = "<_content>")]
 fn post_help(_content: LenientForm<SlackSlashEvent>) -> JsonValue {
     json!({ "text": "Hi, I'm the @progress bot and I'm here to help you with your daily standups! :wave:
-You can mention me or chat at any time to start telling me about your day. If you want me to post your standups in a channel or to set a daily reminder, run `/progress-config`.
-If you get something wrong just run `/progress-forget` and try again. 
+You can mention me or send me a private message at any time to start telling me about your day. If you want to post your standups in a channel or set a daily reminder, run `/progress-config`.
+If you got something wrong just run `/progress-forget` and try again.
 All your daily standups become available in https://web.progress.bot as well so you can track your progress. Enjoy! :pray:" })
 }
 
@@ -88,9 +88,10 @@ fn post_event(event: Json<SlackEvent>, conn: DbConn) -> String {
         // filtering out my own messages this way, we should be more specific but
         // I cant find a way to know my own bot id. This guarantees we only reply to users
         if e.bot_id.is_none() {
-            let (resp, user) = handle::event(e, &data.team_id, &*conn);
             let token = get_bot_token_for_team(&data.team_id, &*conn);
-            slack::send_message(resp, user, token).unwrap();
+            if let Some((resp, user)) = handle::event(e, &data.team_id, &*conn) {
+                slack::send_message(resp, user, token).unwrap();
+            }
         }
         "".to_string()
     } else {
