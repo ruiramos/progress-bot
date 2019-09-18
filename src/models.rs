@@ -5,6 +5,7 @@ use crate::StandupState;
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 #[derive(Debug, Queryable, AsChangeset, QueryableByName)]
+#[changeset_options(treat_none_as_null = "true")]
 #[table_name = "users"]
 pub struct User {
     pub id: i32,

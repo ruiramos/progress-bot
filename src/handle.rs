@@ -156,6 +156,8 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
         let t = NaiveTime::from_hms_milli(h - 1, 0, 0, 0);
         let reminder_date = NaiveDateTime::new(d, t);
         user.reminder = Some(reminder_date);
+    } else {
+        user.reminder = None;
     }
 
     update_user(&mut user, conn);
