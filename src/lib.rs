@@ -224,6 +224,30 @@ pub fn get_bot_token_for_team(team_id: &str, conn: &PgConnection) -> String {
     team.bot_access_token
 }
 
+fn get_number_emoji(n: usize) -> String {
+    let n = n.to_string();
+    n.chars()
+        .map(|n| get_digit_emoji(n))
+        .collect::<Vec<String>>()
+        .join("")
+}
+
+fn get_digit_emoji(n: char) -> String {
+    match n {
+        '1' => ":one:".to_string(),
+        '2' => ":two:".to_string(),
+        '3' => ":three:".to_string(),
+        '4' => ":four:".to_string(),
+        '5' => ":five:".to_string(),
+        '6' => ":six:".to_string(),
+        '7' => ":seven:".to_string(),
+        '8' => ":eight:".to_string(),
+        '9' => ":nine:".to_string(),
+        '0' => ":zero:".to_string(),
+        _ => "".to_string(),
+    }
+}
+
 pub enum StandupState {
     PrevDay,
     Today,
@@ -236,8 +260,8 @@ mod test {
     use crate::schema::standups;
     use crate::{
         create_or_update_team_info, create_standup, create_user, get_bot_token_for_team,
-        get_latest_standup_for_user, get_todays_standup_for_user, NewStandup, SlackOauthBotInfo,
-        SlackOauthResponse, Standup,
+        get_latest_standup_for_user, get_number_emoji, get_todays_standup_for_user, NewStandup,
+        SlackOauthBotInfo, SlackOauthResponse, Standup,
     };
     use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
     use diesel::prelude::*;
@@ -392,5 +416,11 @@ mod test {
         let result = get_todays_standup_for_user(username, &conn);
 
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_number_emoji() {
+        let n = 135;
+        assert_eq!(get_number_emoji(n), ":one::three::five:");
     }
 }

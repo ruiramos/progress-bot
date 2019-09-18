@@ -44,7 +44,7 @@ fn oauth_error(error: String) -> Redirect {
 }
 
 #[post("/show-config", data = "<content>")]
-fn post_show_config(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> String {
+fn command_show_config(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> String {
     let content = content.into_inner();
     let user = get_user(&content.user_id, &*conn);
     let token = get_bot_token_for_team(&content.team_id, &*conn);
@@ -66,17 +66,24 @@ fn post_config(config: Form<SlackConfigResponse>, conn: DbConn) -> String {
 }
 
 #[post("/remove", data = "<content>")]
-fn post_remove_todays(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
+fn command_remove_todays(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
     let user_id = content.into_inner().user_id;
     json!({ "text": handle::remove_todays(&user_id, &*conn) })
 }
 
 #[post("/help", data = "<_content>")]
-fn post_help(_content: LenientForm<SlackSlashEvent>) -> JsonValue {
+fn command_help(_content: LenientForm<SlackSlashEvent>) -> JsonValue {
     json!({ "text": "Hi, I'm the @progress bot and I'm here to help you with your daily standups! :wave:
 You can mention me or send me a private message at any time to start telling me about your day. If you want to post your standups in a channel or set a daily reminder, run `/progress-config`.
 If you got something wrong just run `/progress-forget` and try again.
 All your daily standups become available in https://web.progress.bot as well so you can track your progress. Enjoy! :pray:" })
+}
+
+#[post("/today", data = "<content>")]
+fn command_today(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
+    let data = content.into_inner();
+    let copy = handle::get_todays_tasks(&data.user_id, &data.team_id, &conn);
+    json!({ "text": copy })
 }
 
 #[post("/", data = "<event>")]
@@ -142,11 +149,12 @@ fn main() {
             "/",
             routes![
                 index,
-                post_show_config,
+                command_show_config,
                 post_config,
                 post_event,
-                post_remove_todays,
-                post_help,
+                command_remove_todays,
+                command_help,
+                command_today,
                 oauth,
                 oauth_error
             ],

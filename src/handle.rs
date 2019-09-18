@@ -1,8 +1,8 @@
 use crate::slack;
 use crate::{
     create_standup, create_user, get_bot_token_for_team, get_latest_standup_for_user,
-    get_todays_standup_for_user, get_user, remove_todays_standup_for_user, update_standup,
-    update_user,
+    get_number_emoji, get_todays_standup_for_user, get_user, remove_todays_standup_for_user,
+    update_standup, update_user,
 };
 use crate::{EventDetails, SlackConfig, Standup, StandupState, User};
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
@@ -70,43 +70,18 @@ pub fn react_notification(
 ) -> (String, String) {
     let msg = evt.text;
 
-    if msg.contains("today") {
-        let todays = get_todays_standup_for_user(&evt.user, conn);
-        if let Some(standup) = todays {
-            if standup.day.is_some() {
-                (
-                    format!(
-                        "Hey *{}*, here's what your dealing with today: \n> {}",
-                        user.real_name,
-                        standup.day.unwrap().replace("\n", "\n>")
-                    ),
-                    evt.channel,
-                )
+    let todays = get_todays_standup_for_user(&evt.user, conn);
+    let copy = match todays {
+        None => "I'm here! Ready for your standup today?".to_string(),
+        Some(s) => {
+            if let StandupState::Complete = s.get_state() {
+                "You're done for today, off to work you go now! :nerd_face:".to_string()
             } else {
-                (format!("You still haven't told me what you'll be doing today! Please finish your standup first. \n {}", standup.get_copy(&user.channel)), evt.user)
+                s.get_copy(&user.channel)
             }
-        } else {
-            (
-                String::from("I'm here! Ready for your standup today?"),
-                evt.user,
-            )
         }
-    } else if msg.contains("done") {
-        (String::from(""), evt.user)
-    } else {
-        let todays = get_todays_standup_for_user(&evt.user, conn);
-        let copy = match todays {
-            None => "I'm here! Ready for your standup today?".to_string(),
-            Some(s) => {
-                if let StandupState::Complete = s.get_state() {
-                    "You're done for today, off to work you go now! :nerd_face:".to_string()
-                } else {
-                    s.get_copy(&user.channel)
-                }
-            }
-        };
-        (copy, evt.user)
-    }
+    };
+    (copy, evt.user)
 }
 
 pub fn react_app_home_open(
@@ -180,8 +155,36 @@ pub fn remove_todays(user_id: &str, conn: &diesel::PgConnection) -> String {
     ":shrug: Just forgot all about today's standup, feel free to try again.".to_string()
 }
 
-// copy fns
+pub fn get_todays_tasks(user_id: &str, team_id: &str, conn: &diesel::PgConnection) -> String {
+    let user = match get_user(&user_id, conn) {
+        Some(user) => user,
+        None => create_user(&user_id, team_id, conn),
+    };
+    let todays = get_todays_standup_for_user(user_id, conn);
+    if let Some(standup) = todays {
+        if standup.day.is_some() {
+            let tasks: String = standup
+                .day
+                .unwrap()
+                .split('\n')
+                .enumerate()
+                .map(|(i, x)| format!("> {} {}", get_number_emoji(i + 1), x))
+                .collect::<Vec<String>>()
+                .join("\n");
 
+            format!(
+                "Hey {}, here's what you have in store for *today*: \n{}",
+                user.real_name, tasks
+            )
+        } else {
+            format!("You still haven't told me what you'll be doing today! Please finish your standup first. \n {}", standup.get_copy(&user.channel))
+        }
+    } else {
+        "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string()
+    }
+}
+
+// copy fns
 fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<String>) -> String {
     let mut text = String::from("*:wave: Thanks for checking in today.*\n");
 
