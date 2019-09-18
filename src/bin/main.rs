@@ -5,6 +5,7 @@ extern crate rocket;
 #[macro_use]
 extern crate rocket_contrib;
 
+use dotenv::dotenv;
 use progress_bot::{
     create_or_update_team_info, get_bot_token_for_team, get_user, handle, slack, SlackConfig,
     SlackConfigResponse, SlackEvent, SlackSlashEvent,
@@ -88,8 +89,8 @@ fn post_event(event: Json<SlackEvent>, conn: DbConn) -> String {
         // filtering out my own messages this way, we should be more specific but
         // I cant find a way to know my own bot id. This guarantees we only reply to users
         if e.bot_id.is_none() {
-            let token = get_bot_token_for_team(&data.team_id, &*conn);
-            if let Some((resp, user)) = handle::event(e, &data.team_id, &*conn) {
+            let token = get_bot_token_for_team(data.team_id.as_ref().unwrap(), &*conn);
+            if let Some((resp, user)) = handle::event(e, data.team_id.as_ref().unwrap(), &*conn) {
                 slack::send_message(resp, user, token).unwrap();
             }
         }
@@ -100,6 +101,7 @@ fn post_event(event: Json<SlackEvent>, conn: DbConn) -> String {
 }
 
 fn main() {
+    dotenv().ok();
     let mut database_config = HashMap::new();
     let mut databases = HashMap::new();
 
@@ -127,6 +129,7 @@ fn main() {
             databases.insert("postgres", Value::from(database_config));
 
             Config::build(Environment::Development)
+                .port(8800)
                 .extra("databases", databases)
                 .finalize()
                 .unwrap()

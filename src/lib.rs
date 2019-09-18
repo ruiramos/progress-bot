@@ -20,7 +20,7 @@ use schema::users;
 #[derive(Deserialize, Debug)]
 pub struct SlackEvent {
     pub token: String,
-    pub team_id: String,
+    pub team_id: Option<String>,
     pub challenge: Option<String>,
     pub event: Option<EventDetails>,
 }
