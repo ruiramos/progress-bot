@@ -1,3 +1,4 @@
+use crate::schema::standups;
 use crate::slack;
 use crate::{
     create_standup, create_user, get_bot_token_for_team, get_latest_standup_for_user,
@@ -6,6 +7,7 @@ use crate::{
 };
 use crate::{EventDetails, SlackConfig, Standup, StandupState, User};
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use diesel::prelude::*;
 
 pub fn challenge(c: String) -> String {
     c
@@ -16,27 +18,31 @@ pub fn event(
     team_id: &str,
     conn: &diesel::PgConnection,
 ) -> Option<(String, String)> {
-    let user = match get_user(&evt.user, conn) {
-        Some(user) => user,
-        None => create_user(&evt.user, team_id, conn),
-    };
-
     match evt.r#type.as_ref() {
-        "message" => Some(react(evt, user, conn)),
-        "app_mention" => Some(react_notification(evt, user, conn)),
-        "app_home_opened" => react_app_home_open(evt, user, conn),
+        "message" => match evt.subtype.as_ref() {
+            None => Some(react(evt, team_id, conn)),
+            Some(s) if s == "message_changed" => react_message_edit(evt, conn),
+            _ => None,
+        },
+        "app_mention" => Some(react_notification(evt, team_id, conn)),
+        "app_home_opened" => react_app_home_open(evt, team_id, conn),
         _ => None,
     }
 }
 
-pub fn react(evt: EventDetails, user: User, conn: &diesel::PgConnection) -> (String, String) {
-    let msg = evt.text;
-    let todays = get_todays_standup_for_user(&evt.user, conn);
+pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (String, String) {
+    let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
+        Some(user) => user,
+        None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
+    };
+
+    let msg = evt.text.as_ref().unwrap();
+    let todays = get_todays_standup_for_user(&user.username, conn);
 
     let copy = match todays {
         None => {
-            let latest = get_latest_standup_for_user(&evt.user, conn);
-            let todays = create_standup(&evt.user, conn);
+            let latest = get_latest_standup_for_user(&user.username, conn);
+            let todays = create_standup(&user.username, &user.team_id, conn);
             gen_standup_copy(latest, todays, &user.channel)
         }
         Some(mut todays) => {
@@ -45,12 +51,12 @@ pub fn react(evt: EventDetails, user: User, conn: &diesel::PgConnection) -> (Str
             } else {
                 match todays.get_state() {
                     StandupState::Blocker => {
-                        todays.add_content(&msg);
+                        todays.add_content(msg, &evt);
                         if user.channel.is_some() {
                             share_standup(&user, &todays, &conn);
                         }
                     }
-                    _ => todays.add_content(&msg),
+                    _ => todays.add_content(msg, &evt),
                 }
 
                 update_standup(&todays, conn);
@@ -60,17 +66,91 @@ pub fn react(evt: EventDetails, user: User, conn: &diesel::PgConnection) -> (Str
         }
     };
 
-    (copy, evt.user)
+    (copy, user.username)
+}
+
+pub fn react_message_edit(
+    evt: EventDetails,
+    conn: &diesel::PgConnection,
+) -> Option<(String, String)> {
+    let previous_message = evt.previous_message.unwrap();
+    let new_message = evt.message.unwrap();
+    let username = previous_message.user;
+    let user = get_user(&username, conn);
+
+    if user.is_none() {
+        return Some((
+            "Very weird error, couldn't find your user, sorry.".to_string(),
+            username,
+        ));
+    }
+
+    let todays = get_todays_standup_for_user(&username, conn);
+
+    match todays {
+        None => Some((
+            "Very weird error, couldn't find the standup you just edited, sorry.".to_string(),
+            username,
+        )),
+        Some(mut standup) => {
+            if &previous_message.ts
+                == standup
+                    .prev_day_message_ts
+                    .as_ref()
+                    .unwrap_or(&String::new())
+            {
+                standup.prev_day = Some(new_message.text);
+                standup.prev_day_message_ts = Some(new_message.ts);
+            } else if &previous_message.ts
+                == standup.day_message_ts.as_ref().unwrap_or(&String::new())
+            {
+                standup.day = Some(new_message.text);
+                standup.day_message_ts = Some(new_message.ts);
+            } else if &previous_message.ts
+                == standup
+                    .blocker_message_ts
+                    .as_ref()
+                    .unwrap_or(&String::new())
+            {
+                standup.blocker = Some(new_message.text);
+                standup.blocker_message_ts = Some(new_message.ts);
+            } else {
+                return None;
+            }
+
+            if standup.channel.is_some() {
+                let user = user.unwrap();
+                let ack = slack::update_standup_in_channel(
+                    &standup,
+                    &user,
+                    Local::now().timestamp(),
+                    get_bot_token_for_team(&user.team_id, conn),
+                );
+
+                standup.message_ts = Some(ack.unwrap().ts);
+            }
+
+            update_standup(&standup, conn);
+            Some((
+                ":white_check_mark: Standup updated, thanks!".to_string(),
+                username,
+            ))
+        }
+    }
 }
 
 pub fn react_notification(
     evt: EventDetails,
-    user: User,
+    team_id: &str,
     conn: &diesel::PgConnection,
 ) -> (String, String) {
     let msg = evt.text;
+    let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
+        Some(user) => user,
+        None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
+    };
 
-    let todays = get_todays_standup_for_user(&evt.user, conn);
+    let todays = get_todays_standup_for_user(&user.username, conn);
     let copy = match todays {
         None => "I'm here! Ready for your standup today?".to_string(),
         Some(s) => {
@@ -81,21 +161,26 @@ pub fn react_notification(
             }
         }
     };
-    (copy, evt.user)
+    (copy, user.username)
 }
 
 pub fn react_app_home_open(
     evt: EventDetails,
-    _user: User,
+    team_id: &str,
     conn: &diesel::PgConnection,
 ) -> Option<(String, String)> {
-    let _msg = evt.text;
-    let todays = get_todays_standup_for_user(&evt.user, conn);
+    let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
+        Some(user) => user,
+        None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
+    };
+    let todays = get_todays_standup_for_user(&user.username, conn);
+
+    println!("app_home_open recieved: {:?}", evt);
 
     if todays.is_none() {
         Some((
             String::from("Hey there! Let me know if this is a good time for your standup today."),
-            evt.user,
+            user.username,
         ))
     } else {
         None
@@ -104,7 +189,7 @@ pub fn react_app_home_open(
 
 pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection) {
     let msg = ":newspaper: Here's the latest:";
-    slack::send_standup_to_channel(
+    let ack = slack::send_standup_to_channel(
         user.channel.as_ref().unwrap(),
         msg,
         Local::now().timestamp(),
@@ -113,6 +198,16 @@ pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection
         get_bot_token_for_team(&user.team_id, conn),
     )
     .unwrap();
+
+    if ack.ok == true {
+        diesel::update(standups::table.find(standup.id))
+            .set((
+                standups::message_ts.eq(ack.ts),
+                standups::channel.eq(ack.channel),
+            ))
+            .execute(conn)
+            .expect("Error updating User");
+    }
 }
 
 pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
@@ -150,9 +245,25 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
     copy
 }
 
-pub fn remove_todays(user_id: &str, conn: &diesel::PgConnection) -> String {
-    remove_todays_standup_for_user(user_id, conn);
-    ":shrug: Just forgot all about today's standup, feel free to try again.".to_string()
+pub fn remove_todays(user_id: &str, team_id: &str, conn: &diesel::PgConnection) -> String {
+    let todays = get_todays_standup_for_user(user_id, conn);
+
+    if todays.is_none() {
+        ":warning: Couldn't find your standup for today, so nothing to do here.".to_string()
+    } else {
+        let standup = todays.unwrap();
+        if standup.channel.is_some() {
+            slack::delete_message(
+                standup.message_ts.as_ref().unwrap(),
+                standup.channel.as_ref().unwrap(),
+                &get_bot_token_for_team(team_id, conn),
+            )
+            .unwrap();
+        }
+
+        remove_todays_standup_for_user(user_id, conn);
+        ":shrug: Just forgot all about today's standup, feel free to try again.".to_string()
+    }
 }
 
 pub fn get_todays_tasks(user_id: &str, team_id: &str, conn: &diesel::PgConnection) -> String {

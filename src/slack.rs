@@ -6,9 +6,12 @@ use chrono::Timelike;
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use serde_json::value::Value;
 
 const SLACK_HOST: &str = "https://slack.com";
 const POST_MESSAGE: &str = "/api/chat.postMessage";
+const UPDATE_MESSAGE: &str = "/api/chat.update";
+const DELETE_MESSAGE: &str = "/api/chat.delete";
 const POST_DIALOG: &str = "/api/dialog.open";
 const USER_DETAILS: &str = "/api/users.info";
 const OAUTH_ACCESS: &str = "/api/oauth.access";
@@ -25,7 +28,7 @@ pub fn send_message(
     });
 
     let client = reqwest::Client::new();
-    client
+    let res = client
         .post(&format!("{}{}", SLACK_HOST, POST_MESSAGE))
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", token))
@@ -41,7 +44,7 @@ pub fn send_standup_to_channel(
     standup: &Standup,
     user: &User,
     token: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<SlackMessageAck, Box<dyn std::error::Error>> {
     // @TODO
     let prev_day_str = String::from("Yesterday");
 
@@ -70,15 +73,94 @@ pub fn send_standup_to_channel(
     });
 
     let client = reqwest::Client::new();
-    client
+    let res = client
         .post(&format!("{}{}", SLACK_HOST, POST_MESSAGE))
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", token))
-        .send()?;
+        .send()?
+        .text()?;
+
+    let message_ack: SlackMessageAck = serde_json::from_str(&res)?;
+
+    Ok(message_ack)
+}
+
+pub fn update_standup_in_channel(
+    standup: &Standup,
+    user: &User,
+    ts: i64,
+    token: String,
+) -> Result<SlackMessageAck, Box<dyn std::error::Error>> {
+    let original_ts = standup.message_ts.as_ref().unwrap();
+    let message = ":newspaper: Here's the latest:";
+    let prev_day_str = String::from("Yesterday");
+
+    let payload = json!({
+        "token": token,
+        "channel": standup.channel.as_ref().unwrap(),
+        "ts": original_ts,
+        "as_user": true,
+        "attachments": [{
+            "pretext": message,
+            "author_name": user.real_name,
+            "author_icon": user.avatar_url,
+            "footer": "@progress",
+            "ts": ts,
+            "fields": [{
+                "title": format!("{}:", prev_day_str),
+                "value": standup.prev_day.as_ref().unwrap(),
+                "short": false
+            }, {
+                "title": "Today:",
+                "value": standup.day.as_ref().unwrap(),
+                "short": false
+            }, {
+                "title": "Blockers:",
+                "value": standup.blocker.as_ref().unwrap(),
+                "short": false
+            }]
+        }],
+    });
+
+    let client = reqwest::Client::new();
+
+    let res = client
+        .post(&format!("{}{}", SLACK_HOST, UPDATE_MESSAGE))
+        .json(&payload)
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()?
+        .text()?;
+
+    let message_ack: SlackMessageAck = serde_json::from_str(&res)?;
+
+    Ok(message_ack)
+}
+
+// @TODO
+fn generate_standup_message(standup: &Standup) -> Value {
+    json!({})
+}
+
+pub fn delete_message(
+    ts: &str,
+    channel: &str,
+    token: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let client = reqwest::Client::new();
+    let payload = json!({
+        "ts": ts,
+        "channel": channel,
+    });
+
+    client
+        .post(&format!("{}{}", SLACK_HOST, DELETE_MESSAGE))
+        .json(&payload)
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()?
+        .text()?;
 
     Ok(())
 }
-
 #[derive(Serialize, Deserialize)]
 pub struct SlackResponse {
     user: SlackUserInfo,
@@ -87,6 +169,13 @@ pub struct SlackResponse {
 #[derive(Serialize, Deserialize)]
 pub struct SlackUserInfo {
     profile: UserProfile,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SlackMessageAck {
+    pub ok: bool,
+    pub channel: String,
+    pub ts: String,
 }
 
 #[derive(Serialize, Deserialize)]

@@ -36,11 +36,25 @@ pub struct SlackSlashEvent {
 
 #[derive(Deserialize, Debug)]
 pub struct EventDetails {
-    pub text: String,
-    pub user: String,
+    pub text: Option<String>,
+    pub user: Option<String>,
+    pub ts: String,
     pub channel: String,
     pub r#type: String,
+
     pub bot_id: Option<String>,
+    // for edits:
+    pub subtype: Option<String>,
+    pub message: Option<MessageDetails>,
+    pub previous_message: Option<MessageDetails>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MessageDetails {
+    text: String,
+    user: String,
+    team: String,
+    ts: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -175,8 +189,8 @@ pub fn remove_todays_standup_for_user(user: &str, conn: &PgConnection) {
     .expect("Error deleting standup");
 }
 
-pub fn create_standup(username: &str, conn: &PgConnection) -> Standup {
-    let new_standup = NewStandup::new(username);
+pub fn create_standup(username: &str, team_id: &str, conn: &PgConnection) -> Standup {
+    let new_standup = NewStandup::new(username, team_id);
     diesel::insert_into(standups::table)
         .values(&new_standup)
         .get_result(conn)
@@ -273,18 +287,22 @@ mod test {
     #[test]
     fn test_create_standup() {
         let username = "ruiramos";
+        let team_id = "team1";
         let conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        let standup = create_standup(username, &conn);
+        let standup = create_standup(username, team_id, &conn);
 
         let now = Utc::now();
         let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
         let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
         let today = NaiveDateTime::new(d, t);
 
+        println!("{:?}", standup);
+
         assert_eq!(standup.username, username);
         assert_eq!(standup.date, today);
+        assert_eq!(standup.team_id.unwrap(), team_id);
     }
 
     #[test]
@@ -335,10 +353,11 @@ mod test {
     #[test]
     fn test_get_todays_standup() {
         let username = "ruiramos";
+        let team_id = "team1";
         let conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        let standup = create_standup(username, &conn);
+        let standup = create_standup(username, team_id, &conn);
         let result = get_todays_standup_for_user(username, &conn);
 
         assert_eq!(standup.id, result.unwrap().id);
@@ -347,13 +366,16 @@ mod test {
     #[test]
     fn test_get_latest_standup() {
         let username = "ruiramos";
+        let team_id = "team1";
         let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
         let standup1 = NewStandup {
             username: username.to_string(),
+            team_id: Some(team_id.to_string()),
             date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 02, 05), t),
         };
         let standup2 = NewStandup {
             username: username.to_string(),
+            team_id: Some(team_id.to_string()),
             date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 01, 22), t),
         };
 
@@ -389,14 +411,17 @@ mod test {
     #[test]
     fn test_get_todays_standup_not_found_2() {
         let username = "ruiramos";
+        let team_id = "team1";
         let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
 
         let standup1 = NewStandup {
             username: username.to_string(),
+            team_id: Some(team_id.to_string()),
             date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 02, 05), t),
         };
         let standup2 = NewStandup {
             username: username.to_string(),
+            team_id: Some(team_id.to_string()),
             date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 01, 22), t),
         };
 

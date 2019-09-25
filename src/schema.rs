@@ -6,6 +6,12 @@ table! {
         prev_day -> Nullable<Varchar>,
         day -> Nullable<Varchar>,
         blocker -> Nullable<Varchar>,
+        message_ts -> Nullable<Varchar>,
+        channel -> Nullable<Varchar>,
+        prev_day_message_ts -> Nullable<Varchar>,
+        day_message_ts -> Nullable<Varchar>,
+        blocker_message_ts -> Nullable<Varchar>,
+        team_id -> Nullable<Varchar>,
     }
 }
 

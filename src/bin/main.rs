@@ -67,8 +67,10 @@ fn post_config(config: Form<SlackConfigResponse>, conn: DbConn) -> String {
 
 #[post("/remove", data = "<content>")]
 fn command_remove_todays(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
-    let user_id = content.into_inner().user_id;
-    json!({ "text": handle::remove_todays(&user_id, &*conn) })
+    let data = content.into_inner();
+    let user_id = data.user_id;
+    let team_id = data.team_id;
+    json!({ "text": handle::remove_todays(&user_id, &team_id, &*conn) })
 }
 
 #[post("/help", data = "<_content>")]

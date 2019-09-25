@@ -1,7 +1,7 @@
 use crate::schema::standups;
 use crate::schema::teams;
 use crate::schema::users;
-use crate::StandupState;
+use crate::{EventDetails, StandupState};
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 #[derive(Debug, Queryable, AsChangeset, QueryableByName)]
@@ -35,6 +35,12 @@ pub struct Standup {
     pub prev_day: Option<String>,
     pub day: Option<String>,
     pub blocker: Option<String>,
+    pub message_ts: Option<String>,
+    pub channel: Option<String>,
+    pub prev_day_message_ts: Option<String>,
+    pub day_message_ts: Option<String>,
+    pub blocker_message_ts: Option<String>,
+    pub team_id: Option<String>,
 }
 
 impl Standup {
@@ -50,11 +56,20 @@ impl Standup {
         }
     }
 
-    pub fn add_content(&mut self, content: &str) {
+    pub fn add_content(&mut self, content: &str, evt: &EventDetails) {
         match self.get_state() {
-            StandupState::PrevDay => self.prev_day = Some(content.to_string()),
-            StandupState::Today => self.day = Some(content.to_string()),
-            StandupState::Blocker => self.blocker = Some(content.to_string()),
+            StandupState::PrevDay => {
+                self.prev_day = Some(content.to_string());
+                self.prev_day_message_ts = Some(evt.ts.to_string());
+            }
+            StandupState::Today => {
+                self.day = Some(content.to_string());
+                self.day_message_ts = Some(evt.ts.to_string());
+            }
+            StandupState::Blocker => {
+                self.blocker = Some(content.to_string());
+                self.blocker_message_ts = Some(evt.ts.to_string());
+            }
             _ => (),
         }
     }
@@ -96,11 +111,12 @@ impl Standup {
 #[table_name = "standups"]
 pub struct NewStandup {
     pub username: String,
+    pub team_id: Option<String>,
     pub date: NaiveDateTime,
 }
 
 impl NewStandup {
-    pub fn new(username: &str) -> NewStandup {
+    pub fn new(username: &str, team_id: &str) -> NewStandup {
         let now = Utc::now();
         let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
         let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
@@ -108,6 +124,7 @@ impl NewStandup {
 
         NewStandup {
             username: username.to_string(),
+            team_id: Some(team_id.to_string()),
             date: today,
         }
     }
