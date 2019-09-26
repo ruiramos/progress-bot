@@ -38,7 +38,7 @@ pub struct SlackSlashEvent {
 pub struct EventDetails {
     pub text: Option<String>,
     pub user: Option<String>,
-    pub ts: String,
+    pub ts: Option<String>,
     pub channel: String,
     pub r#type: String,
 

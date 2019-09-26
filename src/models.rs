@@ -57,18 +57,19 @@ impl Standup {
     }
 
     pub fn add_content(&mut self, content: &str, evt: &EventDetails) {
+        let ts = evt.ts.as_ref().unwrap().to_string();
         match self.get_state() {
             StandupState::PrevDay => {
                 self.prev_day = Some(content.to_string());
-                self.prev_day_message_ts = Some(evt.ts.to_string());
+                self.prev_day_message_ts = Some(ts);
             }
             StandupState::Today => {
                 self.day = Some(content.to_string());
-                self.day_message_ts = Some(evt.ts.to_string());
+                self.day_message_ts = Some(ts);
             }
             StandupState::Blocker => {
                 self.blocker = Some(content.to_string());
-                self.blocker_message_ts = Some(evt.ts.to_string());
+                self.blocker_message_ts = Some(ts);
             }
             _ => (),
         }
