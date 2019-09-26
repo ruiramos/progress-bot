@@ -41,6 +41,7 @@ pub struct Standup {
     pub day_message_ts: Option<String>,
     pub blocker_message_ts: Option<String>,
     pub team_id: Option<String>,
+    pub done: Option<Vec<i32>>,
 }
 
 impl Standup {

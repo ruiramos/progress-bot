@@ -32,6 +32,7 @@ pub struct SlackSlashEvent {
     pub trigger_id: String,
     pub user_id: String,
     pub team_id: String,
+    pub text: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]

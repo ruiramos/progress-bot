@@ -12,6 +12,7 @@ table! {
         day_message_ts -> Nullable<Varchar>,
         blocker_message_ts -> Nullable<Varchar>,
         team_id -> Nullable<Varchar>,
+        done -> Nullable<Array<Int4>>,
     }
 }
 

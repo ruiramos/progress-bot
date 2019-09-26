@@ -88,6 +88,44 @@ fn command_today(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonVal
     json!({ "text": copy })
 }
 
+#[post("/done", data = "<content>")]
+fn command_done(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
+    let data = content.into_inner();
+    let text = data.text;
+
+    if text.is_none() {
+        json!({ "text": ":warning: You need to specify the task number to set as done. Run `/progress-today` to get the list of tasks." })
+    } else {
+        let content = text.unwrap();
+        match content.parse::<i32>() {
+            Ok(task) => {
+                let copy = handle::set_task_done(task, &data.user_id, &data.team_id, &conn);
+                json!({ "text": copy })
+            }
+            _ => json!({ "text": ":warning: Please include the task number to set as done. Run `/progress-today` to get the list of tasks." }),
+        }
+    }
+}
+
+#[post("/undo", data = "<content>")]
+fn command_undo(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
+    let data = content.into_inner();
+    let text = data.text;
+
+    if text.is_none() {
+        json!({ "text": ":warning: You need to specify the task number to mark as not done. Run `/progress-today` to get the list of tasks." })
+    } else {
+        let content = text.unwrap();
+        match content.parse::<i32>() {
+            Ok(task) => {
+                let copy = handle::set_task_not_done(task, &data.user_id, &data.team_id, &conn);
+                json!({ "text": copy })
+            }
+            _ => json!({ "text": ":warning: Please include the task number to set as not done. Run `/progress-today` to get the list of tasks." }),
+        }
+    }
+}
+
 #[post("/", data = "<event>")]
 fn post_event(event: Json<SlackEvent>, conn: DbConn) -> String {
     let data = event.into_inner();
@@ -157,6 +195,8 @@ fn main() {
                 command_remove_todays,
                 command_help,
                 command_today,
+                command_done,
+                command_undo,
                 oauth,
                 oauth_error
             ],

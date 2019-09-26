@@ -275,14 +275,7 @@ pub fn get_todays_tasks(user_id: &str, team_id: &str, conn: &diesel::PgConnectio
     let todays = get_todays_standup_for_user(user_id, conn);
     if let Some(standup) = todays {
         if standup.day.is_some() {
-            let tasks: String = standup
-                .day
-                .unwrap()
-                .split('\n')
-                .enumerate()
-                .map(|(i, x)| format!("> {} {}", get_number_emoji(i + 1), x))
-                .collect::<Vec<String>>()
-                .join("\n");
+            let tasks = get_tasks_from_standup(standup);
 
             format!(
                 "Hey {}, here's what you have in store for *today*: \n{}",
@@ -293,6 +286,82 @@ pub fn get_todays_tasks(user_id: &str, team_id: &str, conn: &diesel::PgConnectio
         }
     } else {
         "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string()
+    }
+}
+
+fn get_tasks_from_standup(standup: Standup) -> String {
+    let done = standup.done.unwrap_or(Vec::new());
+    let tasks: String = standup
+        .day
+        .unwrap()
+        .split('\n')
+        .enumerate()
+        .map(|(i, x)| {
+            if done.contains(&((i + 1) as i32)) {
+                format!("> {} ~{}~", get_number_emoji(i + 1), x)
+            } else {
+                format!("> {} {}", get_number_emoji(i + 1), x)
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+    tasks
+}
+
+pub fn set_task_done(
+    task: i32,
+    user_id: &str,
+    team_id: &str,
+    conn: &diesel::PgConnection,
+) -> String {
+    let todays = get_todays_standup_for_user(user_id, conn);
+
+    if todays.is_none() {
+        return "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string();
+    }
+
+    let mut todays = todays.unwrap();
+
+    let mut done = todays.done.unwrap_or(Vec::new());
+    if !done.contains(&task) {
+        done.push(task);
+        todays.done = Some(done);
+        update_standup(&todays, conn);
+        format!(
+            "Got it, marked task {} as done. Here's today: \n{}",
+            task,
+            get_tasks_from_standup(todays)
+        )
+    } else {
+        format!("Task {} was already done!", task)
+    }
+}
+
+pub fn set_task_not_done(
+    task: i32,
+    user_id: &str,
+    team_id: &str,
+    conn: &diesel::PgConnection,
+) -> String {
+    let todays = get_todays_standup_for_user(user_id, conn);
+
+    if todays.is_none() {
+        return "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string();
+    }
+
+    let mut todays = todays.unwrap();
+
+    let done = todays.done.unwrap_or(Vec::new());
+    if done.contains(&task) {
+        todays.done = Some(done.into_iter().filter(|i| *i != task).collect());
+        update_standup(&todays, conn);
+        format!(
+            "Got it, marked task {} as not done. Here's today: \n{}",
+            task,
+            get_tasks_from_standup(todays)
+        )
+    } else {
+        format!("Task {} was not marked as done yet.", task)
     }
 }
 
@@ -316,8 +385,8 @@ fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<S
 
         if let Some(day) = &standup.day {
             text.push_str(&format!(
-                "> *That day*: \n> {}\n",
-                &day.replace("\n", "\n>")
+                "> *That day*: \n{}\n",
+                get_day_copy_from_standup(&standup)
             ));
         }
 
@@ -334,6 +403,32 @@ fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<S
     text.push_str(&format!("\n{}", todays.get_copy(channel)));
 
     text
+}
+
+fn get_day_copy_from_standup(standup: &Standup) -> String {
+    let mut done_tasks: Vec<String> = Vec::new();
+    let mut not_done_tasks: Vec<String> = Vec::new();
+
+    let tasks = standup.day.as_ref().unwrap().split('\n');
+
+    match standup.done.as_ref() {
+        Some(done) => {
+            for (i, item) in tasks.enumerate() {
+                if done.contains(&((i + 1) as i32)) {
+                    done_tasks.push(format!("> {} :white_check_mark:", item));
+                } else {
+                    not_done_tasks.push(format!("> {}", item));
+                }
+            }
+
+            done_tasks.append(&mut not_done_tasks);
+            done_tasks.join(&"\n")
+        }
+        None => tasks
+            .map(|x| format!("> {}", x))
+            .collect::<Vec<String>>()
+            .join(&"\n"),
+    }
 }
 
 fn format_date(date: NaiveDateTime) -> String {
