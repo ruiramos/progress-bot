@@ -89,7 +89,7 @@ pub fn react_message_edit(
 
     match todays {
         None => Some((
-            "Very weird error, couldn't find the standup you just edited, sorry.".to_string(),
+            ":warning: Sorry but you can only really edit today's standup. (and you haven't created one yet! Ready to do that?)".to_string(),
             username,
         )),
         Some(mut standup) => {
@@ -116,7 +116,7 @@ pub fn react_message_edit(
                 standup.blocker_message_ts = Some(new_message.ts);
             } else {
                 return Some((
-                    ":warning: Sorry but you can only edit today's standup.".to_string(),
+                    ":warning: Sorry but you can only really edit today's standup.".to_string(),
                     username,
                 ));
             }
