@@ -115,7 +115,10 @@ pub fn react_message_edit(
                 standup.blocker = Some(new_message.text);
                 standup.blocker_message_ts = Some(new_message.ts);
             } else {
-                return None;
+                return Some((
+                    ":warning: Sorry but you can only edit today's standup.".to_string(),
+                    username,
+                ));
             }
 
             if standup.channel.is_some() {
@@ -174,8 +177,6 @@ pub fn react_app_home_open(
         None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
     };
     let todays = get_todays_standup_for_user(&user.username, conn);
-
-    println!("app_home_open recieved: {:?}", evt);
 
     if todays.is_none() {
         Some((
