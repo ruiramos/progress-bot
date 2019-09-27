@@ -298,9 +298,9 @@ fn get_tasks_from_standup(standup: Standup) -> String {
         .enumerate()
         .map(|(i, x)| {
             if done.contains(&((i + 1) as i32)) {
-                format!("> {} ~{}~", get_number_emoji(i + 1), x)
+                format!("> {} ~{}~", get_number_emoji(i + 1), x.trim())
             } else {
-                format!("> {} {}", get_number_emoji(i + 1), x)
+                format!("> {} {}", get_number_emoji(i + 1), x.trim())
             }
         })
         .collect::<Vec<String>>()
@@ -323,6 +323,9 @@ pub fn set_task_done(
     let mut todays = todays.unwrap();
 
     let mut done = todays.done.unwrap_or(Vec::new());
+
+    // TODO validate if the task makes sense by getting the len() of split('\n') of the day
+
     if !done.contains(&task) {
         done.push(task);
         todays.done = Some(done);
@@ -383,7 +386,7 @@ fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<S
             ));
         }
 
-        if let Some(day) = &standup.day {
+        if standup.day.is_some() {
             text.push_str(&format!(
                 "> *That day*: \n{}\n",
                 get_day_copy_from_standup(&standup)
@@ -415,9 +418,9 @@ fn get_day_copy_from_standup(standup: &Standup) -> String {
         Some(done) => {
             for (i, item) in tasks.enumerate() {
                 if done.contains(&((i + 1) as i32)) {
-                    done_tasks.push(format!("> {} :white_check_mark:", item));
+                    done_tasks.push(format!("> {} :white_check_mark:", item.trim()));
                 } else {
-                    not_done_tasks.push(format!("> {}", item));
+                    not_done_tasks.push(format!("> {}", item.trim()));
                 }
             }
 
