@@ -75,10 +75,15 @@ fn command_remove_todays(content: LenientForm<SlackSlashEvent>, conn: DbConn) ->
 
 #[post("/help", data = "<_content>")]
 fn command_help(_content: LenientForm<SlackSlashEvent>) -> JsonValue {
-    json!({ "text": "Hi, I'm the @progress bot and I'm here to help you with your daily standups! :wave:
-You can mention me or send me a private message at any time to start telling me about your day. If you want to post your standups in a channel or set a daily reminder, run `/progress-config`.
-If you got something wrong just run `/progress-forget` and try again.
-All your daily standups become available in https://web.progress.bot as well so you can track your progress. Enjoy! :pray:" })
+    json!({ "text": "Hi, I'm the @progress bot and I'm here to help you with your daily standups and task management!
+\n:one: *Standups*
+You can mention me (@progress) from a channel or send me a private message at any time to start your daily standup. If you want to post your standups in a channel or set a daily reminder, run `/progress-config`. Create multiple tasks with Slack's multiline messages, by using _shift+enter_.
+If you got something wrong you can either edit the messages you sent me or type `/progress-forget` which will delete your standup for the day and allow you to try again.
+\n:two: *Tasks*
+Check what you have in store for the day, after completing your standup, by typing `/td` (`/progress-today`). From here, you can mark tasks as completed with `/d task_id` (`/progress-done`) or undo them with `/ud` (`/progress-undo`).
+\n:three: *Web UI*
+All your daily standups become available in https://web.progress.bot as well so you can track your progress. 
+\nEnjoy! :pray:" })
 }
 
 #[post("/today", data = "<content>")]

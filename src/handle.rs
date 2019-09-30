@@ -176,15 +176,23 @@ pub fn react_app_home_open(
         Some(user) => user,
         None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
     };
-    let todays = get_todays_standup_for_user(&user.username, conn);
+    let latest = get_latest_standup_for_user(&user.username, conn);
 
-    if todays.is_none() {
+    if latest.is_none() {
         Some((
-            String::from("Hey there! Let me know if this is a good time for your standup today."),
+            String::from("Hey there and welcome to @progress! Let me know if this is a good time for your standup today.\nIf you want more information about how this works, `/progress-help` is a good place to start."),
             user.username,
         ))
     } else {
-        None
+        let todays = get_todays_standup_for_user(&user.username, conn);
+        if todays.is_none() && user.reminder.is_none() {
+            Some((
+                String::from("Hey there! Is this a good time for your standup today?"),
+                user.username,
+            ))
+        } else {
+            None
+        }
     }
 }
 
