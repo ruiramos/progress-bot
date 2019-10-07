@@ -2,12 +2,13 @@ use crate::schema::standups;
 use crate::slack;
 use crate::{
     create_standup, create_user, get_bot_token_for_team, get_latest_standup_for_user,
-    get_number_emoji, get_todays_standup_for_user, get_user, remove_todays_standup_for_user,
-    update_standup, update_user,
+    get_number_emoji, get_standup_before_provided, get_standup_by_id, get_todays_standup_for_user,
+    get_user, remove_todays_standup_for_user, update_standup, update_user, Task,
 };
 use crate::{EventDetails, SlackConfig, Standup, StandupState, User};
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use diesel::prelude::*;
+use rocket_contrib::json::JsonValue;
 
 pub fn challenge(c: String) -> String {
     c
@@ -17,7 +18,7 @@ pub fn event(
     evt: EventDetails,
     team_id: &str,
     conn: &diesel::PgConnection,
-) -> Option<(String, String)> {
+) -> Option<(JsonValue, String)> {
     match evt.r#type.as_ref() {
         "message" => match evt.subtype.as_ref() {
             None => Some(react(evt, team_id, conn)),
@@ -30,7 +31,7 @@ pub fn event(
     }
 }
 
-pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (String, String) {
+pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (JsonValue, String) {
     let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
         Some(user) => user,
         None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
@@ -41,13 +42,12 @@ pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (
 
     let copy = match todays {
         None => {
-            let latest = get_latest_standup_for_user(&user.username, conn);
-            let todays = create_standup(&user.username, &user.team_id, conn);
-            gen_standup_copy(latest, todays, &user.channel)
+            let blocks = get_standup_intro_copy(&user, conn);
+            json!({ "blocks": blocks })
         }
         Some(mut todays) => {
             if let StandupState::Complete = todays.get_state() {
-                "You're done for today, off to work you go now! :nerd_face:".to_string()
+                json!({"text": "You're done for today, off to work you go now! :nerd_face:"})
             } else {
                 match todays.get_state() {
                     StandupState::Blocker => {
@@ -61,7 +61,7 @@ pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (
 
                 update_standup(&todays, conn);
 
-                todays.get_copy(&user.channel)
+                json!({"text": todays.get_copy(&user.channel) })
             }
         }
     };
@@ -72,7 +72,7 @@ pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (
 pub fn react_message_edit(
     evt: EventDetails,
     conn: &diesel::PgConnection,
-) -> Option<(String, String)> {
+) -> Option<(JsonValue, String)> {
     let previous_message = evt.previous_message.unwrap();
     let new_message = evt.message.unwrap();
     let username = previous_message.user;
@@ -80,7 +80,7 @@ pub fn react_message_edit(
 
     if user.is_none() {
         return Some((
-            "Very weird error, couldn't find your user, sorry.".to_string(),
+            json!({"text": "Very weird error, couldn't find your user, sorry."}),
             username,
         ));
     }
@@ -89,7 +89,7 @@ pub fn react_message_edit(
 
     match todays {
         None => Some((
-            ":warning: Sorry but you can only really edit today's standup. (and you haven't created one yet! Ready to do that?)".to_string(),
+            json!({"text": ":warning: Sorry but you can only really edit today's standup. (and you haven't created one yet! Ready to do that?)"}),
             username,
         )),
         Some(mut standup) => {
@@ -116,7 +116,7 @@ pub fn react_message_edit(
                 standup.blocker_message_ts = Some(new_message.ts);
             } else {
                 return Some((
-                    ":warning: Sorry but you can only really edit today's standup.".to_string(),
+                    json!({"text": ":warning: Sorry but you can only really edit today's standup."}),
                     username,
                 ));
             }
@@ -135,7 +135,7 @@ pub fn react_message_edit(
 
             update_standup(&standup, conn);
             Some((
-                ":white_check_mark: Standup updated, thanks!".to_string(),
+                json!({"text": ":white_check_mark: Standup updated, thanks!"}),
                 username,
             ))
         }
@@ -146,7 +146,7 @@ pub fn react_notification(
     evt: EventDetails,
     team_id: &str,
     conn: &diesel::PgConnection,
-) -> (String, String) {
+) -> (JsonValue, String) {
     let msg = evt.text;
     let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
         Some(user) => user,
@@ -161,17 +161,18 @@ pub fn react_notification(
                 "You're done for today, off to work you go now! :nerd_face:".to_string()
             } else {
                 s.get_copy(&user.channel)
+                // @TODO get this user.channel param out of the above and move that here
             }
         }
     };
-    (copy, user.username)
+    (json!({ "text": copy }), user.username)
 }
 
 pub fn react_app_home_open(
     evt: EventDetails,
     team_id: &str,
     conn: &diesel::PgConnection,
-) -> Option<(String, String)> {
+) -> Option<(JsonValue, String)> {
     let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
         Some(user) => user,
         None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
@@ -180,14 +181,14 @@ pub fn react_app_home_open(
 
     if latest.is_none() {
         Some((
-            String::from("Hey there and welcome to @progress! Let me know if this is a good time for your standup today.\nIf you want more information about how this works, `/progress-help` is a good place to start."),
+            json!({"text": "Hey there and welcome to @progress! Let me know if this is a good time for your standup today.\nIf you want more information about how this works, `/progress-help` is a good place to start."}),
             user.username,
         ))
     } else {
         let todays = get_todays_standup_for_user(&user.username, conn);
         if todays.is_none() && user.reminder.is_none() {
             Some((
-                String::from("Hey there! Is this a good time for your standup today?"),
+                json!({"text": "Hey there! Is this a good time for your standup today?"}),
                 user.username,
             ))
         } else {
@@ -225,9 +226,17 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
         None => create_user(&config.user.id, &config.team.id, conn),
     };
 
-    user.channel = config.submission.channel.clone();
+    let submission = config.submission.as_ref().unwrap();
+    let channel = &submission.channel;
+    let reminder = submission.reminder.as_ref();
 
-    if let Some(reminder) = &config.submission.reminder {
+    user.channel = if channel.is_none() {
+        None
+    } else {
+        Some(channel.as_ref().unwrap().clone())
+    };
+
+    if let Some(reminder) = reminder {
         let now = Utc::now();
         let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
         // @TODO timezones
@@ -241,7 +250,7 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
 
     update_user(&mut user, conn);
 
-    let copy = match (&config.submission.reminder, &config.submission.channel) {
+    let copy = match (reminder, channel) {
         (None, None) => "Will not remind you or post your standups anywhere else!".to_string(),
         (None, Some(c)) => format!("Will post your standups in <#{}>.", c),
         (Some(r), None) => format!("Will remind you daily at {}.", r),
@@ -275,7 +284,11 @@ pub fn remove_todays(user_id: &str, team_id: &str, conn: &diesel::PgConnection) 
     }
 }
 
-pub fn get_todays_tasks(user_id: &str, team_id: &str, conn: &diesel::PgConnection) -> String {
+pub fn get_todays_tasks(
+    user_id: &str,
+    team_id: &str,
+    conn: &diesel::PgConnection,
+) -> (String, Option<Vec<Task>>) {
     let user = match get_user(&user_id, conn) {
         Some(user) => user,
         None => create_user(&user_id, team_id, conn),
@@ -284,44 +297,80 @@ pub fn get_todays_tasks(user_id: &str, team_id: &str, conn: &diesel::PgConnectio
     if let Some(standup) = todays {
         if standup.day.is_some() {
             let tasks = get_tasks_from_standup(standup);
+            let num_tasks = tasks.len();
+            let done = tasks
+                .iter()
+                .fold(0, |sum, task| sum + (if task.done { 1 } else { 0 }));
 
-            format!(
-                "Hey {}, here's what you have in store for *today*: \n{}",
-                user.real_name, tasks
-            )
+            let task_word = if num_tasks == 1 { "task" } else { "tasks" };
+
+            let header = if num_tasks == done {
+                format!(
+                    "Hey {}, you've completed all your tasks for *today*, well done! :tada:",
+                    user.real_name,
+                )
+            } else if done > 0 {
+                format!(
+                    "Hey {}, you've completed {}/{} tasks you have in store for *today*:",
+                    user.real_name, done, num_tasks
+                )
+            } else {
+                format!(
+                    "Hey {}, you have {} {} in store for *today*:",
+                    user.real_name, num_tasks, task_word
+                )
+            };
+
+            (header, Some(tasks))
         } else {
-            format!("You still haven't told me what you'll be doing today! Please finish your standup first. \n {}", standup.get_copy(&user.channel))
+            (format!("You still haven't told me what you'll be doing today! Please finish your standup first. \n {}", standup.get_copy(&user.channel)), None)
         }
     } else {
-        "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string()
+        ("Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string(), None)
     }
 }
 
-fn get_tasks_from_standup(standup: Standup) -> String {
+fn get_tasks_from_standup(standup: Standup) -> Vec<Task> {
     let done = standup.done.unwrap_or(Vec::new());
-    let tasks: String = standup
+    let id = standup.id;
+
+    let tasks_vec = standup
         .day
         .unwrap()
         .split('\n')
         .enumerate()
         .map(|(i, x)| {
             if done.contains(&((i + 1) as i32)) {
-                format!("> {} ~{}~", get_number_emoji(i + 1), x.trim())
+                Task {
+                    content: x.trim().to_string(),
+                    done: true,
+                    prefix: get_number_emoji(i + 1),
+                    standup_id: id,
+                }
             } else {
-                format!("> {} {}", get_number_emoji(i + 1), x.trim())
+                Task {
+                    content: x.trim().to_string(),
+                    done: false,
+                    prefix: get_number_emoji(i + 1),
+                    standup_id: id,
+                }
             }
         })
-        .collect::<Vec<String>>()
-        .join("\n");
-    tasks
+        .collect::<Vec<Task>>();
+
+    tasks_vec
 }
 
-pub fn set_task_done(
-    task: i32,
-    user_id: &str,
-    team_id: &str,
-    conn: &diesel::PgConnection,
-) -> String {
+pub fn print_tasks(tasks: Vec<Task>) -> String {
+    tasks
+        .iter()
+        .map(|task| format!("> {}", task))
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+pub fn set_task_done(task: i32, standup_id: i32, conn: &diesel::PgConnection) -> String {
+    /*
     let todays = get_todays_standup_for_user(user_id, conn);
 
     if todays.is_none() {
@@ -329,117 +378,255 @@ pub fn set_task_done(
     }
 
     let mut todays = todays.unwrap();
+    */
 
-    let mut done = todays.done.unwrap_or(Vec::new());
+    let mut standup = get_standup_by_id(standup_id, conn);
+
+    let mut done = standup.done.unwrap_or(Vec::new());
 
     // TODO validate if the task makes sense by getting the len() of split('\n') of the day
 
     if !done.contains(&task) {
         done.push(task);
-        todays.done = Some(done);
-        update_standup(&todays, conn);
+        standup.done = Some(done);
+        update_standup(&standup, conn);
         format!(
-            "Got it, marked task {} as done. Here's today: \n{}",
+            "Got it, marked task {} as *done*. Here's today: \n{}",
             task,
-            get_tasks_from_standup(todays)
+            print_tasks(get_tasks_from_standup(standup))
         )
     } else {
         format!("Task {} was already done!", task)
     }
 }
 
-pub fn set_task_not_done(
-    task: i32,
-    user_id: &str,
-    team_id: &str,
-    conn: &diesel::PgConnection,
-) -> String {
+pub fn set_todays_task_done(task: i32, user_id: &str, conn: &diesel::PgConnection) -> String {
     let todays = get_todays_standup_for_user(user_id, conn);
 
     if todays.is_none() {
         return "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string();
     }
 
-    let mut todays = todays.unwrap();
+    set_task_done(task, todays.unwrap().id, conn)
+}
 
-    let done = todays.done.unwrap_or(Vec::new());
+pub fn set_task_not_done(task: i32, standup_id: i32, conn: &diesel::PgConnection) -> String {
+    let mut standup = get_standup_by_id(standup_id, conn);
+
+    let done = standup.done.unwrap_or(Vec::new());
+
     if done.contains(&task) {
-        todays.done = Some(done.into_iter().filter(|i| *i != task).collect());
-        update_standup(&todays, conn);
+        standup.done = Some(done.into_iter().filter(|i| *i != task).collect());
+        update_standup(&standup, conn);
         format!(
-            "Got it, marked task {} as not done. Here's today: \n{}",
+            "Got it, marked task {} as *not done*. Here's today: \n{}",
             task,
-            get_tasks_from_standup(todays)
+            print_tasks(get_tasks_from_standup(standup))
         )
     } else {
         format!("Task {} was not marked as done yet.", task)
     }
 }
 
-// copy fns
-fn gen_standup_copy(latest: Option<Standup>, todays: Standup, channel: &Option<String>) -> String {
-    let mut text = String::from("*:wave: Thanks for checking in today.*\n");
+pub fn set_todays_task_not_done(task: i32, user_id: &str, conn: &diesel::PgConnection) -> String {
+    let todays = get_todays_standup_for_user(user_id, conn);
 
-    if let Some(standup) = &latest {
-        text.push_str("Here's what you were busy with last time we met:\n\n");
-        text.push_str(&format!(
-            "> *:calendar:  {}*\n\n",
-            format_date(standup.date)
-        ));
-
-        if let Some(prev) = &standup.prev_day {
-            text.push_str(&format!(
-                "> *Day before*: \n> {}\n",
-                &prev.replace("\n", "\n>")
-            ));
-        }
-
-        if standup.day.is_some() {
-            text.push_str(&format!(
-                "> *That day*: \n{}\n",
-                get_day_copy_from_standup(&standup)
-            ));
-        }
-
-        if let Some(blockers) = &standup.blocker {
-            text.push_str(&format!(
-                "> *Blockers*: \n> {}\n",
-                &blockers.replace("\n", "\n>")
-            ));
-        }
-    } else {
-        text.push_str("This is your first time using _@progress_, welcome! We'll make this super quick for you.\n\n")
+    if todays.is_none() {
+        return "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string();
     }
 
-    text.push_str(&format!("\n{}", todays.get_copy(channel)));
-
-    text
+    set_task_not_done(task, todays.unwrap().id, conn)
 }
 
-fn get_day_copy_from_standup(standup: &Standup) -> String {
-    let mut done_tasks: Vec<String> = Vec::new();
-    let mut not_done_tasks: Vec<String> = Vec::new();
+pub fn get_standup_intro_copy(user: &User, conn: &diesel::PgConnection) -> JsonValue {
+    let todays = get_todays_standup_for_user(&user.username, conn);
+    match todays {
+        None => {
+            let latest = get_latest_standup_for_user(&user.username, conn);
+            let todays = create_standup(&user.username, &user.team_id, conn);
+            gen_standup_copy(latest, todays, &user.channel)
+        }
+        Some(todays) => {
+            let latest = get_standup_before_provided(&user.username, &todays, conn);
+            gen_standup_copy(latest, todays, &user.channel)
+        }
+    }
+}
 
-    let tasks = standup.day.as_ref().unwrap().split('\n');
+// copy fns
+fn gen_standup_copy(
+    latest: Option<Standup>,
+    todays: Standup,
+    channel: &Option<String>,
+) -> JsonValue {
+    let greet = String::from("*:wave: Thanks for checking in today.*");
+    let empty_message = String::from("- _Empty_");
+    let intro = String::from(
+        "This is your first time using _@progress_, welcome! We'll make this super quick for you.",
+    );
 
-    match standup.done.as_ref() {
-        Some(done) => {
-            for (i, item) in tasks.enumerate() {
-                if done.contains(&((i + 1) as i32)) {
-                    done_tasks.push(format!("> {} :white_check_mark:", item.trim()));
+    if latest.is_none() {
+        json!([{
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": format!("{}\n{}\n\n{}", greet, intro, todays.get_copy(channel))
+            }
+        }])
+    } else {
+        let standup = latest.unwrap();
+
+        let prev_day_str = if let Some(content) = &standup.prev_day {
+            content
+        } else {
+            &empty_message
+        };
+
+        let day_array = get_day_copy_from_standup(&standup);
+
+        let blocker_str = if let Some(content) = &standup.blocker {
+            content
+        } else {
+            &empty_message
+        };
+
+        let mut all_blocks: Vec<JsonValue> = vec![
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("{}\n{}", greet, "Here's what you were busy with last time we met:\n")
+                }
+            }),
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*:calendar:  {}*", format_date(standup.local_date.unwrap_or(standup.date)))
+                }
+            }),
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*Day before:*")
+                }
+            }),
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("> {}", prev_day_str.replace("\n", "\n>"))
+                }
+            }),
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*That day:*")
+                }
+            }),
+        ];
+
+        if day_array.len() > 0 {
+            for (i, task) in day_array.iter().enumerate() {
+                if task.done {
+                    all_blocks.push(json!({
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": format!("> :white_check_mark: {}", task.content)
+                        },
+                        "accessory": {
+                            "type": "button",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Mark as not done",
+                            },
+                            "value": format!("{}-{}", (i+1), task.standup_id),
+                            "action_id": "set-task-not-done"
+                        }
+                    }));
                 } else {
-                    not_done_tasks.push(format!("> {}", item.trim()));
+                    all_blocks.push(json!({
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": format!("> {}", task.content)
+                        },
+                        "accessory": {
+                            "type": "button",
+                            "text": {
+                                "type": "plain_text",
+                                "text": "Mark as done",
+                            },
+                            "style": "primary",
+                            "value": format!("{}-{}", (i+1), task.standup_id),
+                            "action_id": "set-task-done"
+                        }
+                    }));
                 }
             }
-
-            done_tasks.append(&mut not_done_tasks);
-            done_tasks.join(&"\n")
+        } else {
+            all_blocks.push(json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("> {}", empty_message)
+                }
+            }))
         }
-        None => tasks
-            .map(|x| format!("> {}", x))
-            .collect::<Vec<String>>()
-            .join(&"\n"),
+
+        all_blocks.append(&mut vec![
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!("*Blockers*")
+                }
+            }),
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": format!(">{}", blocker_str.replace("\n", "\n>"))
+                }
+            }),
+            json!({
+                "type": "section",
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": todays.get_copy(channel)
+                }
+            }),
+        ]);
+
+        json!(all_blocks)
     }
+}
+
+fn get_day_copy_from_standup(standup: &Standup) -> Vec<Task> {
+    if standup.day.is_none() {
+        return vec![];
+    }
+
+    let tasks = standup.day.as_ref().unwrap().split('\n');
+    let mut done = &vec![];
+
+    if standup.done.is_some() {
+        done = standup.done.as_ref().unwrap();
+    }
+
+    tasks
+        .enumerate()
+        .map(|(i, task)| Task {
+            content: task.trim().to_string(),
+            done: done.contains(&((i + 1) as i32)),
+            prefix: "".to_string(),
+            standup_id: standup.id,
+        })
+        .collect::<Vec<Task>>()
 }
 
 fn format_date(date: NaiveDateTime) -> String {

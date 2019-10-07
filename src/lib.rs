@@ -1,4 +1,6 @@
 #[macro_use]
+extern crate rocket_contrib;
+#[macro_use]
 extern crate serde_derive;
 extern crate chrono;
 #[macro_use]
@@ -16,6 +18,25 @@ use rocket::request::FromForm;
 use schema::standups;
 use schema::teams;
 use schema::users;
+use std::fmt;
+
+#[derive(Deserialize, Debug)]
+pub struct Task {
+    pub content: String,
+    pub done: bool,
+    pub prefix: String,
+    pub standup_id: i32,
+}
+
+impl fmt::Display for Task {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.done {
+            write!(f, "{} ~{}~", self.prefix, self.content)
+        } else {
+            write!(f, "{} {}", self.prefix, self.content)
+        }
+    }
+}
 
 #[derive(Deserialize, Debug)]
 pub struct SlackEvent {
@@ -78,11 +99,27 @@ pub struct SlackConfigSubmission {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SlackConfig {
+    pub r#type: String,
     pub user: SlackConfigResource,
     pub team: SlackConfigTeam,
     pub channel: SlackConfigResource,
-    pub submission: SlackConfigSubmission,
+    pub submission: Option<SlackConfigSubmission>,
     pub response_url: String,
+    pub callback_id: Option<String>,
+    pub actions: Option<Vec<SlackConfigAction>>,
+    pub message: Option<SlackMessage>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SlackMessage {
+    pub ts: String,
+    pub user: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SlackConfigAction {
+    pub action_id: String,
+    pub value: String,
 }
 
 #[derive(Debug, FromForm)]
@@ -161,6 +198,20 @@ pub fn get_latest_standup_for_user(user: &str, conn: &PgConnection) -> Option<St
         .expect("Error getting latest standup for user")
 }
 
+pub fn get_standup_before_provided(
+    user: &str,
+    provided: &Standup,
+    conn: &PgConnection,
+) -> Option<Standup> {
+    standups::table
+        .filter(standups::username.eq(user))
+        .filter(standups::date.lt(provided.date))
+        .order_by(standups::date.desc())
+        .first::<Standup>(conn)
+        .optional()
+        .expect("Error getting latest standup for user")
+}
+
 pub fn get_todays_standup_for_user(user: &str, conn: &PgConnection) -> Option<Standup> {
     let now = Utc::now();
     let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
@@ -172,6 +223,13 @@ pub fn get_todays_standup_for_user(user: &str, conn: &PgConnection) -> Option<St
         .filter(standups::date.eq(today))
         .first::<Standup>(conn)
         .optional()
+        .expect("Error getting latest standup for user")
+}
+
+pub fn get_standup_by_id(id: i32, conn: &PgConnection) -> Standup {
+    standups::table
+        .find(id)
+        .first::<Standup>(conn)
         .expect("Error getting latest standup for user")
 }
 

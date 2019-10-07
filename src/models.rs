@@ -2,7 +2,7 @@ use crate::schema::standups;
 use crate::schema::teams;
 use crate::schema::users;
 use crate::{EventDetails, StandupState};
-use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 
 #[derive(Debug, Queryable, AsChangeset, QueryableByName)]
 #[changeset_options(treat_none_as_null = "true")]
@@ -42,6 +42,8 @@ pub struct Standup {
     pub blocker_message_ts: Option<String>,
     pub team_id: Option<String>,
     pub done: Option<Vec<i32>>,
+    pub local_date: Option<NaiveDateTime>,
+    pub intro_message_ts: Option<String>,
 }
 
 impl Standup {
@@ -83,14 +85,14 @@ impl Standup {
                 let prev_day_str = "yesterday";
 
                 format!(
-                    ":one: Firstly how did *{}* go? What were you able to achieve? _(use shift+enter to create new lines for separating tasks)_",
+                    ":one: Anything you want to add about your day *{}*?",
                     prev_day_str
                 )
             }
             StandupState::Today => {
-                ":two: What are you going to be focusing on *today*?".to_string()
+                ":two: What are you going to be focusing on *today*? _(Tip: use shift+enter to create multiple tasks on separate lines)_".to_string()
             }
-            StandupState::Blocker => ":three: Any blockers impacting your work?".to_string(),
+            StandupState::Blocker => ":three: Any *blockers* impacting your work? *Any other business*?".to_string(),
             StandupState::Complete => {
                 let extra = match channel {
                     None => String::from(""),
@@ -115,6 +117,7 @@ pub struct NewStandup {
     pub username: String,
     pub team_id: Option<String>,
     pub date: NaiveDateTime,
+    pub local_date: NaiveDateTime,
 }
 
 impl NewStandup {
@@ -123,11 +126,13 @@ impl NewStandup {
         let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
         let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
         let today = NaiveDateTime::new(d, t);
+        let local_date = Local::now().naive_local();
 
         NewStandup {
             username: username.to_string(),
             team_id: Some(team_id.to_string()),
             date: today,
+            local_date: local_date,
         }
     }
 }

@@ -56,8 +56,12 @@ pub fn notify_user(user: &User, conn: &PgConnection) {
         user.username
     );
     let token = get_bot_token_for_team(&user.team_id, conn);
-    slack::send_message(message, user.username.to_string(), token)
-        .expect(&format!("Failed to notify user {}", user.username));
+    slack::send_message(
+        serde_json::json!({ "text": message }),
+        user.username.to_string(),
+        token,
+    )
+    .expect(&format!("Failed to notify user {}", user.username));
 }
 
 pub fn set_last_notified(user: &User, conn: &PgConnection) {

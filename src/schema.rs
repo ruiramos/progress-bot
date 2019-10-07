@@ -13,6 +13,8 @@ table! {
         blocker_message_ts -> Nullable<Varchar>,
         team_id -> Nullable<Varchar>,
         done -> Nullable<Array<Int4>>,
+        local_date -> Nullable<Timestamp>,
+        intro_message_ts -> Nullable<Varchar>,
     }
 }
 

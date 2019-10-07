@@ -8,7 +8,7 @@ extern crate rocket_contrib;
 use dotenv::dotenv;
 use progress_bot::{
     create_or_update_team_info, get_bot_token_for_team, get_user, handle, slack, SlackConfig,
-    SlackConfigResponse, SlackEvent, SlackSlashEvent,
+    SlackConfigAction, SlackConfigResponse, SlackEvent, SlackSlashEvent,
 };
 use rocket::config::{Config, Environment, Value};
 use rocket::http::uri::Absolute;
@@ -53,16 +53,87 @@ fn command_show_config(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> S
 }
 
 #[post("/config", data = "<config>")]
-fn post_config(config: Form<SlackConfigResponse>, conn: DbConn) -> String {
+fn post_config(config: Form<SlackConfigResponse>, conn: DbConn) -> JsonValue {
+    println!("{:?}", config);
     let config: SlackConfig = serde_json::from_str(&config.payload).unwrap();
-    let copy = handle::config(&config, &*conn);
-    let token = get_bot_token_for_team(&config.team.id, &*conn);
+    if config.r#type == "dialog_submission" {
+        let copy = handle::config(&config, &*conn);
+        let token = get_bot_token_for_team(&config.team.id, &*conn);
 
-    thread::spawn(move || {
-        slack::send_response(&copy, &config.response_url, token).unwrap();
-    });
+        thread::spawn(move || {
+            slack::send_response(&copy, &config.response_url, token).unwrap();
+        });
 
-    "".to_string()
+        json!({})
+    } else if config.r#type == "block_actions" {
+        // clicking on the standup intro message setting things as done
+        let token = get_bot_token_for_team(&config.team.id, &*conn);
+        let actions: Vec<SlackConfigAction> = config.actions.unwrap();
+        let action = &actions[0];
+        let split: Vec<&str> = action.value.split('-').collect();
+        let (task_id, standup_id): (i32, i32) =
+            (split[0].parse().unwrap(), split[1].parse().unwrap());
+
+        if action.action_id == "set-task-done" {
+            handle::set_task_done(task_id, standup_id, &conn);
+        } else if action.action_id == "set-task-not-done" {
+            handle::set_task_not_done(task_id, standup_id, &conn);
+        }
+
+        // edit message with new copy
+        let original = config.message.expect("Error unwraping message from config");
+        let user = get_user(&config.user.id, &conn).expect("Error unwrapping user");
+        let new_blocks = handle::get_standup_intro_copy(&user, &conn);
+        slack::update_intro_message(&original.ts, &config.channel.id, new_blocks.0, &token)
+            .expect("Failed to update standup intro copy");
+        json!({})
+    } else {
+        json!({})
+    }
+    /* this was a test with the /today command, not really intentded functionality
+
+     else if config.r#type == "interactive_message" && config.callback_id.is_some()
+    /*== "set_task_status"*/
+    {
+        let actions: Vec<SlackConfigAction> = config.actions.unwrap();
+        let action = &actions[0];
+        if action.action_id == "do-task" {
+            handle::set_task_done(
+                action.value.parse().unwrap(),
+                &config.user.id,
+                &config.team.id,
+                &conn,
+            );
+        } else {
+            handle::set_task_not_done(
+                action.value.parse().unwrap(),
+                &config.user.id,
+                &config.team.id,
+                &conn,
+            );
+        }
+        let (text, tasks) = handle::get_todays_tasks(&config.user.id, &config.team.id, &conn);
+        json!({
+            "text": text,
+            "attachments": tasks.unwrap().iter().enumerate().map(|(i, task)| {
+                let button_name = if task.done { "undo-task" } else { "do-task" };
+                let button_text = if task.done { "Mark as not done" } else { "Mark as done" };
+                let button_style = if task.done { "" } else { "primary" };
+                json!({
+                    "text": task.to_string(),
+                    "callback_id": "set_task_status",
+                    "attachment_type": "default",
+                    "actions": [{
+                        "name": button_name,
+                        "text": button_text,
+                        "type": "button",
+                        "value": i+1,
+                        "style": button_style
+                    }]
+                })
+            }).collect::<Vec<JsonValue>>()
+        })
+        */
 }
 
 #[post("/remove", data = "<content>")]
@@ -89,8 +160,39 @@ All your daily standups become available in https://web.progress.bot as well so 
 #[post("/today", data = "<content>")]
 fn command_today(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
     let data = content.into_inner();
-    let copy = handle::get_todays_tasks(&data.user_id, &data.team_id, &conn);
-    json!({ "text": copy })
+    let (text, tasks) = handle::get_todays_tasks(&data.user_id, &data.team_id, &conn);
+    if tasks.is_none() {
+        json!({ "text": text })
+    } else {
+        json!({
+            "text":
+                format!(
+                    "{}\n{}\n\n{}",
+                    text,
+                    handle::print_tasks(tasks.expect("Error unwraping tasks")),
+                    "Mark tasks as done with `/d task_number`, undo with `/u task_number`."
+                )
+            /* POC - remove?
+            "attachments": tasks.unwrap().iter().enumerate().map(|(i, task)| {
+                let button_name = if task.done { "undo-task" } else { "do-task" };
+                let button_text = if task.done { "Mark as not done" } else { "Mark as done" };
+                let button_style = if task.done { "" } else { "primary" };
+                json!({
+                    "text": task.to_string(),
+                    "callback_id": "set_task_status",
+                    "attachment_type": "default",
+                    "actions": [{
+                        "name": button_name,
+                        "text": button_text,
+                        "type": "button",
+                        "value": i+1,
+                        "style": button_style
+                    }]
+                })
+            }).collect::<Vec<JsonValue>>()
+            */
+        })
+    }
 }
 
 #[post("/done", data = "<content>")]
@@ -104,7 +206,7 @@ fn command_done(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValu
         let content = text.unwrap();
         match content.parse::<i32>() {
             Ok(task) => {
-                let copy = handle::set_task_done(task, &data.user_id, &data.team_id, &conn);
+                let copy = handle::set_todays_task_done(task, &data.user_id, &conn);
                 json!({ "text": copy })
             }
             _ => json!({ "text": ":warning: Please include the task number to set as done. Run `/progress-today` to get the list of tasks." }),
@@ -123,7 +225,7 @@ fn command_undo(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValu
         let content = text.unwrap();
         match content.parse::<i32>() {
             Ok(task) => {
-                let copy = handle::set_task_not_done(task, &data.user_id, &data.team_id, &conn);
+                let copy = handle::set_todays_task_not_done(task, &data.user_id, &conn);
                 json!({ "text": copy })
             }
             _ => json!({ "text": ":warning: Please include the task number to set as not done. Run `/progress-today` to get the list of tasks." }),
@@ -143,7 +245,8 @@ fn post_event(event: Json<SlackEvent>, conn: DbConn) -> String {
         if e.bot_id.is_none() {
             let token = get_bot_token_for_team(data.team_id.as_ref().unwrap(), &*conn);
             if let Some((resp, user)) = handle::event(e, data.team_id.as_ref().unwrap(), &*conn) {
-                slack::send_message(resp, user, token).unwrap();
+                // the .0 converts the Rocket JsonValue into the underlying serde_json
+                slack::send_message(resp.0, user, token).unwrap();
             }
         }
         "".to_string()

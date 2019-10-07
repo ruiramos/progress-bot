@@ -17,12 +17,14 @@ const USER_DETAILS: &str = "/api/users.info";
 const OAUTH_ACCESS: &str = "/api/oauth.access";
 
 pub fn send_message(
-    message: String,
+    message: Value,
     channel: String,
     token: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let payload = json!({
-        "text": message,
+        "text": message.get("text"),
+        "attachments": message.get("attachments"),
+        "blocks": message.get("blocks"),
         "channel": channel,
         "as_user": true
     });
@@ -32,7 +34,14 @@ pub fn send_message(
         .post(&format!("{}{}", SLACK_HOST, POST_MESSAGE))
         .json(&payload)
         .header(AUTHORIZATION, format!("Bearer {}", token))
-        .send()?;
+        .send()?
+        .error_for_status();
+
+    if res.is_err() {
+        println!("Error sending slack message: {:?}", res);
+    }
+
+    println!("{:?}", res.unwrap().text()?);
 
     Ok(())
 }
@@ -120,6 +129,34 @@ pub fn update_standup_in_channel(
                 "short": false
             }]
         }],
+    });
+
+    let client = reqwest::Client::new();
+
+    let res = client
+        .post(&format!("{}{}", SLACK_HOST, UPDATE_MESSAGE))
+        .json(&payload)
+        .header(AUTHORIZATION, format!("Bearer {}", token))
+        .send()?
+        .text()?;
+
+    let message_ack: SlackMessageAck = serde_json::from_str(&res)?;
+
+    Ok(message_ack)
+}
+
+pub fn update_intro_message(
+    ts: &str,
+    user: &str,
+    new_blocks: Value,
+    token: &str,
+) -> Result<SlackMessageAck, Box<dyn std::error::Error>> {
+    let payload = json!({
+        "token": token,
+        "channel": user,
+        "ts": ts,
+        "as_user": true,
+        "blocks": new_blocks
     });
 
     let client = reqwest::Client::new();
