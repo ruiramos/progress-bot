@@ -108,8 +108,8 @@ impl Standup {
                 };
 
                 // @TODO tomorrow_str
-                format!(":white_check_mark: *All done here!* {}\n\n Thank you, have a great day and talk to you {}.",
-                    extra, "tomorrow"
+                format!(":white_check_mark: *All done here!* {}\n\n You can now check your todo list for today with `/td`. Thank you, have a great day!",
+                    extra
                 )
             }
         }
