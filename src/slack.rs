@@ -99,6 +99,7 @@ pub fn update_standup_in_channel(
     standup: &Standup,
     user: &User,
     ts: i64,
+    completed_last: String,
     token: String,
 ) -> Result<SlackMessageAck, Box<dyn std::error::Error>> {
     let original_ts = standup.message_ts.as_ref().unwrap();
@@ -118,7 +119,7 @@ pub fn update_standup_in_channel(
             "ts": ts,
             "fields": [{
                 "title": format!("{}:", prev_day_str),
-                "value": standup.prev_day.as_ref().unwrap(),
+                "value": format!("{}\n{}", completed_last, standup.prev_day.as_ref().unwrap()),
                 "short": false
             }, {
                 "title": "Today:",

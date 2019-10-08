@@ -123,10 +123,22 @@ pub fn react_message_edit(
 
             if standup.channel.is_some() {
                 let user = user.unwrap();
+                let prev = get_standup_before_provided(&user.username, &standup, conn);
+                let completed_last = if let Some(ps) = prev {
+                    get_tasks_from_standup(ps)
+                        .iter()
+                        .filter(|task| task.done)
+                        .map(|task| format!(":white_check_mark: {}", task.content))
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                } else {
+                    String::from("")
+                };
                 let ack = slack::update_standup_in_channel(
                     &standup,
                     &user,
                     Local::now().timestamp(),
+                    completed_last,
                     get_bot_token_for_team(&user.team_id, conn),
                 );
 
