@@ -199,11 +199,24 @@ pub fn react_app_home_open(
 
 pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection) {
     let msg = ":newspaper: Here's the latest:";
+    let prev = get_standup_before_provided(&user.username, standup, conn);
+    let completed_last = if let Some(ps) = prev {
+        get_tasks_from_standup(ps)
+            .iter()
+            .filter(|task| task.done)
+            .map(|task| format!(":white_check_mark: {}", task.content))
+            .collect::<Vec<String>>()
+            .join("\n")
+    } else {
+        String::from("")
+    };
+
     let ack = slack::send_standup_to_channel(
         user.channel.as_ref().unwrap(),
         msg,
         Local::now().timestamp(),
         standup,
+        completed_last,
         user,
         get_bot_token_for_team(&user.team_id, conn),
     )

@@ -109,6 +109,10 @@ impl Standup {
             }
         }
     }
+
+    pub fn get_done_tasks() -> String {
+        String::from("")
+    }
 }
 
 #[derive(Insertable)]

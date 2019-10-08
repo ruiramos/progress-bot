@@ -51,6 +51,7 @@ pub fn send_standup_to_channel(
     message: &str,
     ts: i64,
     standup: &Standup,
+    completed_last: String,
     user: &User,
     token: String,
 ) -> Result<SlackMessageAck, Box<dyn std::error::Error>> {
@@ -65,9 +66,9 @@ pub fn send_standup_to_channel(
             "author_icon": user.avatar_url,
             "footer": "@progress",
             "ts": ts,
-            "fields": [{
+            "fields": [completed_last, {
                 "title": format!("{}:", prev_day_str),
-                "value": standup.prev_day.as_ref().unwrap(),
+                "value": format!("{}\n{}", completed_last, standup.prev_day.as_ref().unwrap()),
                 "short": false
             }, {
                 "title": "Today:",
