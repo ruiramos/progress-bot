@@ -63,7 +63,12 @@ impl Standup {
         let ts = evt.ts.as_ref().unwrap().to_string();
         match self.get_state() {
             StandupState::PrevDay => {
-                self.prev_day = Some(content.to_string());
+                if content.to_ascii_lowercase() == "no".to_string() {
+                    self.prev_day = Some(String::from(""));
+                } else {
+                    self.prev_day = Some(content.to_string());
+                }
+
                 self.prev_day_message_ts = Some(ts);
             }
             StandupState::Today => {
