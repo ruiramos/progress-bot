@@ -500,14 +500,14 @@ fn gen_standup_copy(
                 }
             }),
             json!({
-                "type": "divider",
-            }),
-            json!({
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
                     "text": format!("*:calendar:  {}*", format_date(standup.local_date.unwrap_or(standup.date)))
                 }
+            }),
+            json!({
+                "type": "divider",
             }),
         ];
 
