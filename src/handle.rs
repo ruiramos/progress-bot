@@ -395,18 +395,7 @@ pub fn print_tasks(tasks: Vec<Task>) -> String {
 }
 
 pub fn set_task_done(task: i32, standup_id: i32, conn: &diesel::PgConnection) -> String {
-    /*
-    let todays = get_todays_standup_for_user(user_id, conn);
-
-    if todays.is_none() {
-        return "Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string();
-    }
-
-    let mut todays = todays.unwrap();
-    */
-
     let mut standup = get_standup_by_id(standup_id, conn);
-
     let mut done = standup.done.unwrap_or(Vec::new());
 
     // TODO validate if the task makes sense by getting the len() of split('\n') of the day
@@ -500,20 +489,7 @@ fn gen_standup_copy(
         }])
     } else {
         let standup = latest.unwrap();
-
-        let prev_day_str = if let Some(content) = &standup.prev_day {
-            content
-        } else {
-            &empty_message
-        };
-
         let day_array = get_day_copy_from_standup(&standup);
-
-        let blocker_str = if let Some(content) = &standup.blocker {
-            content
-        } else {
-            &empty_message
-        };
 
         let mut all_blocks: Vec<JsonValue> = vec![
             json!({
@@ -522,6 +498,9 @@ fn gen_standup_copy(
                     "type": "mrkdwn",
                     "text": format!("{}\n{}", greet, "Here's what you were busy with last time we met:\n")
                 }
+            }),
+            json!({
+                "type": "divider",
             }),
             json!({
                 "type": "section",
@@ -539,7 +518,7 @@ fn gen_standup_copy(
                         "type": "section",
                         "text": {
                             "type": "mrkdwn",
-                            "text": format!("> :white_check_mark: {}", task.content)
+                            "text": format!(":white_check_mark: {}", task.content)
                         },
                         "accessory": {
                             "type": "button",
@@ -556,7 +535,7 @@ fn gen_standup_copy(
                         "type": "section",
                         "text": {
                             "type": "mrkdwn",
-                            "text": format!("> {}", task.content)
+                            "text": format!("{}", task.content)
                         },
                         "accessory": {
                             "type": "button",
@@ -581,14 +560,18 @@ fn gen_standup_copy(
             }))
         }
 
-        all_blocks.append(&mut vec![json!({
-            "type": "section",
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": todays.get_copy(channel)
-            }
-        })]);
+        all_blocks.append(&mut vec![
+            json!({
+                "type": "divider",
+            }),
+            json!({
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": todays.get_copy(channel)
+                }
+            }),
+        ]);
 
         json!(all_blocks)
     }
