@@ -530,27 +530,6 @@ fn gen_standup_copy(
                     "text": format!("*:calendar:  {}*", format_date(standup.local_date.unwrap_or(standup.date)))
                 }
             }),
-            json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*Day before:*")
-                }
-            }),
-            json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("> {}", prev_day_str.replace("\n", "\n>"))
-                }
-            }),
-            json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*That day:*")
-                }
-            }),
         ];
 
         if day_array.len() > 0 {
@@ -602,30 +581,14 @@ fn gen_standup_copy(
             }))
         }
 
-        all_blocks.append(&mut vec![
-            json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!("*Blockers*")
-                }
-            }),
-            json!({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": format!(">{}", blocker_str.replace("\n", "\n>"))
-                }
-            }),
-            json!({
-                "type": "section",
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": todays.get_copy(channel)
-                }
-            }),
-        ]);
+        all_blocks.append(&mut vec![json!({
+            "type": "section",
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": todays.get_copy(channel)
+            }
+        })]);
 
         json!(all_blocks)
     }
