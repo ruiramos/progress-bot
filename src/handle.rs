@@ -122,27 +122,7 @@ pub fn react_message_edit(
             }
 
             if standup.channel.is_some() {
-                let user = user.unwrap();
-                let prev = get_standup_before_provided(&user.username, &standup, conn);
-                let completed_last = if let Some(ps) = prev {
-                    get_tasks_from_standup(ps)
-                        .iter()
-                        .filter(|task| task.done)
-                        .map(|task| format!(":white_check_mark: {}", task.content))
-                        .collect::<Vec<String>>()
-                        .join("\n")
-                } else {
-                    String::from("")
-                };
-                let ack = slack::update_standup_in_channel(
-                    &standup,
-                    &user,
-                    Local::now().timestamp(),
-                    completed_last,
-                    get_bot_token_for_team(&user.team_id, conn),
-                );
-
-                standup.message_ts = Some(ack.unwrap().ts);
+                update_standup_message_in_channel(&user.unwrap(), &mut standup, conn);
             }
 
             update_standup(&standup, conn);
@@ -152,6 +132,29 @@ pub fn react_message_edit(
             ))
         }
     }
+}
+
+fn update_standup_message_in_channel(user: &User, standup: &mut Standup, conn: &PgConnection) {
+    let prev = get_standup_before_provided(&user.username, &standup, conn);
+    let completed_last = if let Some(ps) = prev {
+        get_tasks_from_standup(ps)
+            .iter()
+            .filter(|task| task.done)
+            .map(|task| format!(":white_check_mark: {}", task.content))
+            .collect::<Vec<String>>()
+            .join("\n")
+    } else {
+        String::from("")
+    };
+    let ack = slack::update_standup_in_channel(
+        &standup,
+        &user,
+        Local::now().timestamp(),
+        completed_last,
+        get_bot_token_for_team(&user.team_id, conn),
+    );
+
+    standup.message_ts = Some(ack.unwrap().ts);
 }
 
 pub fn react_notification(
@@ -450,6 +453,29 @@ pub fn set_todays_task_not_done(task: i32, user_id: &str, conn: &diesel::PgConne
     }
 
     set_task_not_done(task, todays.unwrap().id, conn)
+}
+
+pub fn add_task_to_today(
+    task: &str,
+    user_id: &str,
+    conn: &diesel::PgConnection,
+) -> Result<String, String> {
+    let todays = get_todays_standup_for_user(user_id, conn);
+    let user = get_user(&user_id, conn);
+
+    if let Some(mut standup) = todays {
+        let new_content = format!("{}\n{}", standup.day.unwrap_or(String::new()), task);
+        standup.day = Some(new_content.trim().to_string());
+
+        if standup.channel.is_some() {
+            update_standup_message_in_channel(&user.unwrap(), &mut standup, conn);
+        }
+
+        update_standup(&standup, conn);
+        Ok(String::from(""))
+    } else {
+        Err("Couldn't find todays standup, sorry. Mention @progress or send me a message to start the standup flow.".to_string())
+    }
 }
 
 pub fn get_standup_intro_copy(user: &User, conn: &diesel::PgConnection) -> JsonValue {

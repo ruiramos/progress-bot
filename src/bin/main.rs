@@ -172,25 +172,6 @@ fn command_today(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonVal
                     handle::print_tasks(tasks.expect("Error unwraping tasks")),
                     "Mark tasks as done with `/d task_number`, undo with `/u task_number`."
                 )
-            /* POC - remove?
-            "attachments": tasks.unwrap().iter().enumerate().map(|(i, task)| {
-                let button_name = if task.done { "undo-task" } else { "do-task" };
-                let button_text = if task.done { "Mark as not done" } else { "Mark as done" };
-                let button_style = if task.done { "" } else { "primary" };
-                json!({
-                    "text": task.to_string(),
-                    "callback_id": "set_task_status",
-                    "attachment_type": "default",
-                    "actions": [{
-                        "name": button_name,
-                        "text": button_text,
-                        "type": "button",
-                        "value": i+1,
-                        "style": button_style
-                    }]
-                })
-            }).collect::<Vec<JsonValue>>()
-            */
         })
     }
 }
@@ -229,6 +210,24 @@ fn command_undo(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValu
                 json!({ "text": copy })
             }
             _ => json!({ "text": ":warning: Please include the task number to set as not done. Run `/progress-today` to get the list of tasks." }),
+        }
+    }
+}
+
+#[post("/add", data = "<content>")]
+fn command_add(content: LenientForm<SlackSlashEvent>, conn: DbConn) -> JsonValue {
+    let data = content.into_inner();
+    let text = data.text;
+
+    if text.is_none() {
+        json!({ "text": ":warning: You have to include the task to add." })
+    } else {
+        let content = text.unwrap();
+        let result = handle::add_task_to_today(&content, &data.user_id, &conn);
+        if let Err(msg) = result {
+            json!({ "text": msg })
+        } else {
+            json!({ "text": ":white_check_mark: Task added." })
         }
     }
 }
@@ -305,6 +304,7 @@ fn main() {
                 command_today,
                 command_done,
                 command_undo,
+                command_add,
                 oauth,
                 oauth_error
             ],
