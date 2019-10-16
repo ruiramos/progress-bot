@@ -134,29 +134,6 @@ pub fn react_message_edit(
     }
 }
 
-fn update_standup_message_in_channel(user: &User, standup: &mut Standup, conn: &PgConnection) {
-    let prev = get_standup_before_provided(&user.username, &standup, conn);
-    let completed_last = if let Some(ps) = prev {
-        get_tasks_from_standup(ps)
-            .iter()
-            .filter(|task| task.done)
-            .map(|task| format!(":white_check_mark: {}", task.content))
-            .collect::<Vec<String>>()
-            .join("\n")
-    } else {
-        String::from("")
-    };
-    let ack = slack::update_standup_in_channel(
-        &standup,
-        &user,
-        Local::now().timestamp(),
-        completed_last,
-        get_bot_token_for_team(&user.team_id, conn),
-    );
-
-    standup.message_ts = Some(ack.unwrap().ts);
-}
-
 pub fn react_notification(
     evt: EventDetails,
     team_id: &str,
@@ -216,12 +193,22 @@ pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection
     let msg = ":newspaper: Here's the latest:";
     let prev = get_standup_before_provided(&user.username, standup, conn);
     let completed_last = if let Some(ps) = prev {
-        get_tasks_from_standup(ps)
-            .iter()
-            .filter(|task| task.done)
-            .map(|task| format!(":white_check_mark: {}", task.content))
-            .collect::<Vec<String>>()
-            .join("\n")
+        let tasks = get_tasks_from_standup(ps);
+        format!(
+            "{}\n{}",
+            tasks
+                .iter()
+                .filter(|task| task.done)
+                .map(|task| format!(":white_check_mark: {}", task.content))
+                .collect::<Vec<String>>()
+                .join("\n"),
+            tasks
+                .iter()
+                .filter(|task| !task.done)
+                .map(|task| format!(":heavy_multiplication_x: {}", task.content))
+                .collect::<Vec<String>>()
+                .join("\n"),
+        )
     } else {
         String::from("")
     };
@@ -246,6 +233,39 @@ pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection
             .execute(conn)
             .expect("Error updating User");
     }
+}
+
+fn update_standup_message_in_channel(user: &User, standup: &mut Standup, conn: &PgConnection) {
+    let prev = get_standup_before_provided(&user.username, &standup, conn);
+    let completed_last = if let Some(ps) = prev {
+        let tasks = get_tasks_from_standup(ps);
+        format!(
+            "{}\n{}",
+            tasks
+                .iter()
+                .filter(|task| task.done)
+                .map(|task| format!(":white_check_mark: {}", task.content))
+                .collect::<Vec<String>>()
+                .join("\n"),
+            tasks
+                .iter()
+                .filter(|task| !task.done)
+                .map(|task| format!(":heavy_multiplication_x: {}", task.content))
+                .collect::<Vec<String>>()
+                .join("\n"),
+        )
+    } else {
+        String::from("")
+    };
+    let ack = slack::update_standup_in_channel(
+        &standup,
+        &user,
+        Local::now().timestamp(),
+        completed_last,
+        get_bot_token_for_team(&user.team_id, conn),
+    );
+
+    standup.message_ts = Some(ack.unwrap().ts);
 }
 
 pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
@@ -401,9 +421,17 @@ pub fn set_task_done(task: i32, standup_id: i32, conn: &diesel::PgConnection) ->
     let mut standup = get_standup_by_id(standup_id, conn);
     let mut done = standup.done.unwrap_or(Vec::new());
 
-    // TODO validate if the task makes sense by getting the len() of split('\n') of the day
+    let count_tasks = standup
+        .day
+        .as_ref()
+        .unwrap()
+        .split('\n')
+        .collect::<Vec<&str>>()
+        .len();
 
-    if !done.contains(&task) {
+    if task as usize > count_tasks {
+        format!(":warning: Task {} doesn't exist!", task)
+    } else if !done.contains(&task) {
         done.push(task);
         standup.done = Some(done);
         update_standup(&standup, conn);
@@ -432,7 +460,17 @@ pub fn set_task_not_done(task: i32, standup_id: i32, conn: &diesel::PgConnection
 
     let done = standup.done.unwrap_or(Vec::new());
 
-    if done.contains(&task) {
+    let count_tasks = standup
+        .day
+        .as_ref()
+        .unwrap()
+        .split('\n')
+        .collect::<Vec<&str>>()
+        .len();
+
+    if task as usize > count_tasks {
+        format!(":warning: Task {} doesn't exist!", task)
+    } else if done.contains(&task) {
         standup.done = Some(done.into_iter().filter(|i| *i != task).collect());
         update_standup(&standup, conn);
         format!(
