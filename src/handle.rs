@@ -289,7 +289,7 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
         let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
         // @TODO timezones
         let h: u32 = reminder.parse().unwrap();
-        let t = NaiveTime::from_hms_milli(h - 1, 0, 0, 0);
+        let t = NaiveTime::from_hms_milli(h, 0, 0, 0);
         let reminder_date = NaiveDateTime::new(d, t);
         user.reminder = Some(reminder_date);
     } else {
