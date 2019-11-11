@@ -68,7 +68,7 @@ pub fn send_standup_to_channel(
             "ts": ts,
             "fields": [completed_last, {
                 "title": format!("{}:", prev_day_str),
-                "value": format!("{}\n{}", completed_last, standup.prev_day.as_ref().unwrap()),
+                "value": format!("{}\n{}", completed_last, standup.prev_day.as_ref().unwrap_or(&String::from(""))),
                 "short": false
             }, {
                 "title": "Today:",

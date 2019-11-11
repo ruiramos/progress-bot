@@ -192,26 +192,7 @@ pub fn react_app_home_open(
 pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection) {
     let msg = ":newspaper: Here's the latest:";
     let prev = get_standup_before_provided(&user.username, standup, conn);
-    let completed_last = if let Some(ps) = prev {
-        let tasks = get_tasks_from_standup(ps);
-        format!(
-            "{}\n{}",
-            tasks
-                .iter()
-                .filter(|task| task.done)
-                .map(|task| format!(":white_check_mark: {}", task.content))
-                .collect::<Vec<String>>()
-                .join("\n"),
-            tasks
-                .iter()
-                .filter(|task| !task.done)
-                .map(|task| format!(":heavy_multiplication_x: {}", task.content))
-                .collect::<Vec<String>>()
-                .join("\n"),
-        )
-    } else {
-        String::from("")
-    };
+    let completed_last = get_standup_completed(prev);
 
     let ack = slack::send_standup_to_channel(
         user.channel.as_ref().unwrap(),
@@ -235,28 +216,35 @@ pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection
     }
 }
 
+fn get_standup_completed(prev: Option<Standup>) -> String {
+    let mut completed_last = String::from("");
+    if let Some(ps) = prev {
+        let tasks = get_tasks_from_standup(ps);
+        if tasks.len() > 0 {
+            completed_last = format!(
+                "{}\n{}",
+                tasks
+                    .iter()
+                    .filter(|task| task.done)
+                    .map(|task| format!(":white_check_mark: {}", task.content))
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+                tasks
+                    .iter()
+                    .filter(|task| !task.done)
+                    .map(|task| format!(":heavy_multiplication_x: {}", task.content))
+                    .collect::<Vec<String>>()
+                    .join("\n"),
+            );
+        }
+    };
+
+    completed_last
+}
 fn update_standup_message_in_channel(user: &User, standup: &mut Standup, conn: &PgConnection) {
     let prev = get_standup_before_provided(&user.username, &standup, conn);
-    let completed_last = if let Some(ps) = prev {
-        let tasks = get_tasks_from_standup(ps);
-        format!(
-            "{}\n{}",
-            tasks
-                .iter()
-                .filter(|task| task.done)
-                .map(|task| format!(":white_check_mark: {}", task.content))
-                .collect::<Vec<String>>()
-                .join("\n"),
-            tasks
-                .iter()
-                .filter(|task| !task.done)
-                .map(|task| format!(":heavy_multiplication_x: {}", task.content))
-                .collect::<Vec<String>>()
-                .join("\n"),
-        )
-    } else {
-        String::from("")
-    };
+    let completed_last = get_standup_completed(prev);
+
     let ack = slack::update_standup_in_channel(
         &standup,
         &user,
@@ -381,6 +369,10 @@ pub fn get_todays_tasks(
 fn get_tasks_from_standup(standup: Standup) -> Vec<Task> {
     let done = standup.done.unwrap_or(Vec::new());
     let id = standup.id;
+
+    if standup.day.is_none() {
+        return Vec::new();
+    }
 
     let tasks_vec = standup
         .day
