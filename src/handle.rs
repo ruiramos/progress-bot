@@ -530,7 +530,7 @@ fn gen_standup_copy(
     channel: &Option<String>,
 ) -> JsonValue {
     let greet = String::from("*:wave: Thanks for checking in today.*");
-    let empty_message = String::from("- _Empty_");
+    let empty_message = String::from("_Empty_");
     let intro = String::from(
         "This is your first time using _@progress_, welcome! We'll make this super quick for you.",
     );
@@ -647,6 +647,7 @@ fn get_day_copy_from_standup(standup: &Standup) -> Vec<Task> {
 
     tasks
         .enumerate()
+        .filter(|(i, task)| task.trim().len() > 0)
         .map(|(i, task)| Task {
             content: task.trim().to_string(),
             done: done.contains(&((i + 1) as i32)),
