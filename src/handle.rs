@@ -569,41 +569,51 @@ fn gen_standup_copy(
 
         if day_array.len() > 0 {
             for (i, task) in day_array.iter().enumerate() {
-                if task.done {
+                if task.content.len() == 0 {
                     all_blocks.push(json!({
                         "type": "section",
                         "text": {
                             "type": "mrkdwn",
-                            "text": format!(":white_check_mark: {}", task.content)
-                        },
-                        "accessory": {
-                            "type": "button",
-                            "text": {
-                                "type": "plain_text",
-                                "text": "Mark as not done",
-                            },
-                            "value": format!("{}-{}", (i+1), task.standup_id),
-                            "action_id": "set-task-not-done"
+                            "text": empty_message
                         }
                     }));
                 } else {
-                    all_blocks.push(json!({
-                        "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": format!("{}", task.content)
-                        },
-                        "accessory": {
-                            "type": "button",
+                    if task.done {
+                        all_blocks.push(json!({
+                            "type": "section",
                             "text": {
-                                "type": "plain_text",
-                                "text": "Mark as done",
+                                "type": "mrkdwn",
+                                "text": format!(":white_check_mark: {}", task.content)
                             },
-                            "style": "primary",
-                            "value": format!("{}-{}", (i+1), task.standup_id),
-                            "action_id": "set-task-done"
-                        }
-                    }));
+                            "accessory": {
+                                "type": "button",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": "Mark as not done",
+                                },
+                                "value": format!("{}-{}", (i+1), task.standup_id),
+                                "action_id": "set-task-not-done"
+                            }
+                        }));
+                    } else {
+                        all_blocks.push(json!({
+                            "type": "section",
+                            "text": {
+                                "type": "mrkdwn",
+                                "text": format!("{}", task.content)
+                            },
+                            "accessory": {
+                                "type": "button",
+                                "text": {
+                                    "type": "plain_text",
+                                    "text": "Mark as done",
+                                },
+                                "style": "primary",
+                                "value": format!("{}-{}", (i+1), task.standup_id),
+                                "action_id": "set-task-done"
+                            }
+                        }));
+                    }
                 }
             }
         } else {
@@ -647,7 +657,6 @@ fn get_day_copy_from_standup(standup: &Standup) -> Vec<Task> {
 
     tasks
         .enumerate()
-        .filter(|(i, task)| task.trim().len() > 0)
         .map(|(i, task)| Task {
             content: task.trim().to_string(),
             done: done.contains(&((i + 1) as i32)),
