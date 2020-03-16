@@ -283,8 +283,16 @@ pub fn create_or_update_team_info(res: SlackOauthResponse, conn: &PgConnection) 
             .values(&new_team)
             .get_result::<Team>(conn)
             .expect("Error creating a new team");
-    } else {
-        // ? not sure should we update or create a new one is there a point?
+    } else if let Some(teaminfo) = team {
+        diesel::update(teams::table.find(teaminfo.id))
+            .set((
+                teams::access_token.eq(res.access_token),
+                teams::team_name.eq(res.team_name),
+                teams::bot_user_id.eq(res.bot.bot_user_id),
+                teams::bot_access_token.eq(res.bot.bot_access_token),
+            ))
+            .get_result::<Team>(conn)
+            .expect(&format!("Unable to update team {}", teaminfo.team_name));
     }
 }
 
