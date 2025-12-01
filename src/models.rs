@@ -3,6 +3,7 @@ use crate::schema::teams;
 use crate::schema::users;
 use crate::{EventDetails, StandupState};
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
+use diesel::prelude::*;
 
 #[derive(Debug, Queryable, AsChangeset, QueryableByName)]
 #[changeset_options(treat_none_as_null = "true")]
@@ -133,8 +134,8 @@ pub struct NewStandup {
 impl NewStandup {
     pub fn new(username: &str, team_id: &str) -> NewStandup {
         let now = Utc::now();
-        let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
-        let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+        let d = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
+        let t = NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap();
         let today = NaiveDateTime::new(d, t);
         let local_date = Local::now().naive_local();
 
