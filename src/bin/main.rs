@@ -20,8 +20,10 @@ fn index() -> &'static str {
 
 #[rocket::get("/oauth?<code>")]
 async fn oauth(code: String, conn: DbConn) -> Redirect {
-    let oauth_response = slack::get_token_with_code(code).unwrap();
-    create_or_update_team_info(oauth_response, &mut *conn);
+    conn.run(move |c| {
+        let oauth_response = slack::get_token_with_code(code).unwrap();
+        create_or_update_team_info(oauth_response, c);
+    }).await;
     let uri = Absolute::parse("https://progress.bot/success").expect("valid URI");
     Redirect::to(uri)
 }
