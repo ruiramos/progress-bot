@@ -1,10 +1,4 @@
-#[macro_use]
-extern crate rocket_contrib;
-#[macro_use]
-extern crate serde_derive;
-extern crate chrono;
-#[macro_use]
-extern crate diesel;
+use serde::{Deserialize, Serialize};
 
 pub mod handle;
 pub mod models;
@@ -14,7 +8,6 @@ pub mod slack;
 use self::models::{NewStandup, NewTeam, NewUser, Standup, Team, User};
 use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use diesel::prelude::*;
-use rocket::request::FromForm;
 use schema::standups;
 use schema::teams;
 use schema::users;
@@ -46,7 +39,7 @@ pub struct SlackEvent {
     pub event: Option<EventDetails>,
 }
 
-#[derive(Deserialize, Debug, FromForm)]
+#[derive(Deserialize, Debug, rocket::form::FromForm)]
 pub struct SlackSlashEvent {
     pub token: String,
     pub response_url: String,
@@ -122,7 +115,7 @@ pub struct SlackConfigAction {
     pub value: String,
 }
 
-#[derive(Debug, FromForm)]
+#[derive(Debug, rocket::form::FromForm)]
 pub struct SlackConfigResponse {
     pub payload: String,
 }
@@ -141,7 +134,7 @@ pub struct SlackOauthBotInfo {
     pub bot_access_token: String,
 }
 
-pub fn create_user(username: &str, team_id: &str, conn: &PgConnection) -> User {
+pub fn create_user(username: &str, team_id: &str, conn: &mut PgConnection) -> User {
     let token = get_bot_token_for_team(team_id, conn);
     let details = slack::get_user_details(username, token);
 
@@ -174,7 +167,7 @@ pub fn create_user(username: &str, team_id: &str, conn: &PgConnection) -> User {
     }
 }
 
-pub fn get_user(un: &str, conn: &PgConnection) -> Option<User> {
+pub fn get_user(un: &str, conn: &mut PgConnection) -> Option<User> {
     users::table
         .filter(users::username.eq(un))
         .first::<User>(conn)
@@ -182,14 +175,14 @@ pub fn get_user(un: &str, conn: &PgConnection) -> Option<User> {
         .expect("Error getting user")
 }
 
-pub fn update_user(user: &mut User, conn: &PgConnection) -> User {
+pub fn update_user(user: &mut User, conn: &mut PgConnection) -> User {
     diesel::update(users::table.find(user.id))
         .set(&*user)
         .get_result(conn)
         .expect("Error updating User")
 }
 
-pub fn get_latest_standup_for_user(user: &str, conn: &PgConnection) -> Option<Standup> {
+pub fn get_latest_standup_for_user(user: &str, conn: &mut PgConnection) -> Option<Standup> {
     standups::table
         .filter(standups::username.eq(user))
         .order_by(standups::date.desc())
@@ -201,7 +194,7 @@ pub fn get_latest_standup_for_user(user: &str, conn: &PgConnection) -> Option<St
 pub fn get_standup_before_provided(
     user: &str,
     provided: &Standup,
-    conn: &PgConnection,
+    conn: &mut PgConnection,
 ) -> Option<Standup> {
     standups::table
         .filter(standups::username.eq(user))
@@ -212,10 +205,10 @@ pub fn get_standup_before_provided(
         .expect("Error getting latest standup for user")
 }
 
-pub fn get_todays_standup_for_user(user: &str, conn: &PgConnection) -> Option<Standup> {
+pub fn get_todays_standup_for_user(user: &str, conn: &mut PgConnection) -> Option<Standup> {
     let now = Utc::now();
-    let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
-    let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+    let d = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
+    let t = NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap();
     let today = NaiveDateTime::new(d, t);
 
     standups::table
@@ -226,17 +219,17 @@ pub fn get_todays_standup_for_user(user: &str, conn: &PgConnection) -> Option<St
         .expect("Error getting latest standup for user")
 }
 
-pub fn get_standup_by_id(id: i32, conn: &PgConnection) -> Standup {
+pub fn get_standup_by_id(id: i32, conn: &mut PgConnection) -> Standup {
     standups::table
         .find(id)
         .first::<Standup>(conn)
         .expect("Error getting latest standup for user")
 }
 
-pub fn remove_todays_standup_for_user(user: &str, conn: &PgConnection) {
+pub fn remove_todays_standup_for_user(user: &str, conn: &mut PgConnection) {
     let now = Utc::now();
-    let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
-    let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+    let d = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
+    let t = NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap();
     let today = NaiveDateTime::new(d, t);
 
     diesel::delete(
@@ -248,7 +241,7 @@ pub fn remove_todays_standup_for_user(user: &str, conn: &PgConnection) {
     .expect("Error deleting standup");
 }
 
-pub fn create_standup(username: &str, team_id: &str, conn: &PgConnection) -> Standup {
+pub fn create_standup(username: &str, team_id: &str, conn: &mut PgConnection) -> Standup {
     let new_standup = NewStandup::new(username, team_id);
     diesel::insert_into(standups::table)
         .values(&new_standup)
@@ -256,14 +249,14 @@ pub fn create_standup(username: &str, team_id: &str, conn: &PgConnection) -> Sta
         .expect("Error saving new Standup")
 }
 
-pub fn update_standup(standup: &Standup, conn: &PgConnection) -> Standup {
+pub fn update_standup(standup: &Standup, conn: &mut PgConnection) -> Standup {
     diesel::update(standups::table.find(standup.id))
         .set(standup)
         .get_result(conn)
         .expect("Error updating Standup")
 }
 
-pub fn create_or_update_team_info(res: SlackOauthResponse, conn: &PgConnection) {
+pub fn create_or_update_team_info(res: SlackOauthResponse, conn: &mut PgConnection) {
     let team = teams::table
         .filter(teams::team_id.eq(&res.team_id))
         .first::<Team>(conn)
@@ -296,7 +289,7 @@ pub fn create_or_update_team_info(res: SlackOauthResponse, conn: &PgConnection) 
     }
 }
 
-pub fn get_bot_token_for_team(team_id: &str, conn: &PgConnection) -> String {
+pub fn get_bot_token_for_team(team_id: &str, conn: &mut PgConnection) -> String {
     let team = teams::table
         .filter(teams::team_id.eq(team_id))
         .first::<Team>(conn)
@@ -355,14 +348,14 @@ mod test {
     fn test_create_standup() {
         let username = "ruiramos";
         let team_id = "team1";
-        let conn = get_db();
+        let mut conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        let standup = create_standup(username, team_id, &conn);
+        let standup = create_standup(username, team_id, &mut conn);
 
         let now = Utc::now();
-        let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
-        let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+        let d = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
+        let t = NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap();
         let today = NaiveDateTime::new(d, t);
 
         println!("{:?}", standup);
@@ -385,11 +378,11 @@ mod test {
             },
         };
 
-        let conn = get_db();
+        let mut conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        create_or_update_team_info(oauth_response, &conn);
-        let token = get_bot_token_for_team(team_id, &conn);
+        create_or_update_team_info(oauth_response, &mut conn);
+        let token = get_bot_token_for_team(team_id, &mut conn);
 
         assert_eq!(token, "111");
     }
@@ -408,11 +401,11 @@ mod test {
             },
         };
 
-        let conn = get_db();
+        let mut conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        create_or_update_team_info(oauth_response, &conn);
-        let user = create_user(username, team_id, &conn);
+        create_or_update_team_info(oauth_response, &mut conn);
+        let user = create_user(username, team_id, &mut conn);
 
         assert_eq!(user.username, username);
     }
@@ -421,11 +414,11 @@ mod test {
     fn test_get_todays_standup() {
         let username = "ruiramos";
         let team_id = "team1";
-        let conn = get_db();
+        let mut conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        let standup = create_standup(username, team_id, &conn);
-        let result = get_todays_standup_for_user(username, &conn);
+        let standup = create_standup(username, team_id, &mut conn);
+        let result = get_todays_standup_for_user(username, &mut conn);
 
         assert_eq!(standup.id, result.unwrap().id);
     }
@@ -434,32 +427,34 @@ mod test {
     fn test_get_latest_standup() {
         let username = "ruiramos";
         let team_id = "team1";
-        let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+        let t = NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap();
         let standup1 = NewStandup {
             username: username.to_string(),
             team_id: Some(team_id.to_string()),
-            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 02, 05), t),
+            date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 02, 05).unwrap(), t),
+            local_date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 02, 05).unwrap(), t),
         };
         let standup2 = NewStandup {
             username: username.to_string(),
             team_id: Some(team_id.to_string()),
-            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 01, 22), t),
+            date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 01, 22).unwrap(), t),
+            local_date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 01, 22).unwrap(), t),
         };
 
-        let conn = get_db();
+        let mut conn = get_db();
         conn.begin_test_transaction().unwrap();
 
         let s1_insert: Standup = diesel::insert_into(standups::table)
             .values(&standup1)
-            .get_result(&conn)
+            .get_result(&mut conn)
             .expect("Error saving new Standup");
 
         let _s2_insert: Standup = diesel::insert_into(standups::table)
             .values(&standup2)
-            .get_result(&conn)
+            .get_result(&mut conn)
             .expect("Error saving new Standup");
 
-        let result = get_latest_standup_for_user(username, &conn);
+        let result = get_latest_standup_for_user(username, &mut conn);
 
         assert_eq!(result.unwrap().date, s1_insert.date);
     }
@@ -467,10 +462,10 @@ mod test {
     #[test]
     fn test_get_todays_standup_not_found() {
         let username = "ruiramos";
-        let conn = get_db();
+        let mut conn = get_db();
         conn.begin_test_transaction().unwrap();
 
-        let result = get_todays_standup_for_user(username, &conn);
+        let result = get_todays_standup_for_user(username, &mut conn);
 
         assert!(result.is_none());
     }
@@ -479,33 +474,35 @@ mod test {
     fn test_get_todays_standup_not_found_2() {
         let username = "ruiramos";
         let team_id = "team1";
-        let t = NaiveTime::from_hms_milli(0, 0, 0, 0);
+        let t = NaiveTime::from_hms_milli_opt(0, 0, 0, 0).unwrap();
 
         let standup1 = NewStandup {
             username: username.to_string(),
             team_id: Some(team_id.to_string()),
-            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 02, 05), t),
+            date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 02, 05).unwrap(), t),
+            local_date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 02, 05).unwrap(), t),
         };
         let standup2 = NewStandup {
             username: username.to_string(),
             team_id: Some(team_id.to_string()),
-            date: NaiveDateTime::new(NaiveDate::from_ymd(2011, 01, 22), t),
+            date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 01, 22).unwrap(), t),
+            local_date: NaiveDateTime::new(NaiveDate::from_ymd_opt(2011, 01, 22).unwrap(), t),
         };
 
-        let conn = get_db();
+        let mut conn = get_db();
         conn.begin_test_transaction().unwrap();
 
         diesel::insert_into(standups::table)
             .values(&standup1)
-            .get_result::<Standup>(&conn)
+            .get_result::<Standup>(&mut conn)
             .expect("Error saving new Standup");
 
         diesel::insert_into(standups::table)
             .values(&standup2)
-            .get_result::<Standup>(&conn)
+            .get_result::<Standup>(&mut conn)
             .expect("Error saving new Standup");
 
-        let result = get_todays_standup_for_user(username, &conn);
+        let result = get_todays_standup_for_user(username, &mut conn);
 
         assert!(result.is_none());
     }

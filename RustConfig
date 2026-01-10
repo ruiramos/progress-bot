@@ -1,3 +1,0 @@
-VERSION=nightly-2019-08-27
-RUST_INSTALL_DIESEL=1
-DIESEL_FLAGS="--force --no-default-features --features postgres"

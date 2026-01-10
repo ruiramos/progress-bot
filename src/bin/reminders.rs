@@ -1,12 +1,8 @@
-extern crate chrono;
-extern crate diesel;
-extern crate dotenv;
-
 use chrono::prelude::*;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::sql_query;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use std::env;
 
 use progress_bot::get_bot_token_for_team;
@@ -17,7 +13,7 @@ use progress_bot::slack;
 fn main() {
     dotenv().ok();
 
-    let conn = establish_connection();
+    let mut conn = establish_connection();
 
     let users = sql_query(
         "SELECT * FROM users u \
@@ -33,14 +29,14 @@ fn main() {
          AND extract('dow' from now()) != 0 \
          AND extract('dow' from now()) != 6;",
     )
-    .load::<User>(&conn)
+    .load::<User>(&mut conn)
     .expect("Error loading users");
 
     println!("{:?}", users);
 
     for user in users.iter() {
-        notify_user(user, &conn);
-        set_last_notified(user, &conn);
+        notify_user(user, &mut conn);
+        set_last_notified(user, &mut conn);
     }
 }
 
@@ -49,7 +45,7 @@ pub fn establish_connection() -> PgConnection {
     PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
 }
 
-pub fn notify_user(user: &User, conn: &PgConnection) {
+pub fn notify_user(user: &User, conn: &mut PgConnection) {
     println!("notify! {}", user.username);
     let message = format!(
         "Hey <@{}>, is this a good time for your standup today? :)",
@@ -64,7 +60,7 @@ pub fn notify_user(user: &User, conn: &PgConnection) {
     .expect(&format!("Failed to notify user {}", user.username));
 }
 
-pub fn set_last_notified(user: &User, conn: &PgConnection) {
+pub fn set_last_notified(user: &User, conn: &mut PgConnection) {
     diesel::update(users::table.find(user.id))
         .set(users::last_notified.eq(Utc::now().naive_utc()))
         .get_result::<User>(conn)

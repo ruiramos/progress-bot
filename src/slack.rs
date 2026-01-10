@@ -1,8 +1,6 @@
-extern crate base64;
-extern crate reqwest;
-
 use crate::{SlackOauthResponse, SlackSlashEvent, Standup, User};
 use chrono::Timelike;
+use reqwest::blocking::Client;
 use reqwest::header::AUTHORIZATION;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -29,7 +27,7 @@ pub fn send_message(
         "as_user": true
     });
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
     let res = client
         .post(&format!("{}{}", SLACK_HOST, POST_MESSAGE))
         .json(&payload)
@@ -82,7 +80,7 @@ pub fn send_standup_to_channel(
         }]
     });
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
     let res = client
         .post(&format!("{}{}", SLACK_HOST, POST_MESSAGE))
         .json(&payload)
@@ -133,7 +131,7 @@ pub fn update_standup_in_channel(
         }],
     });
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
 
     let res = client
         .post(&format!("{}{}", SLACK_HOST, UPDATE_MESSAGE))
@@ -161,7 +159,7 @@ pub fn update_intro_message(
         "blocks": new_blocks
     });
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
 
     let res = client
         .post(&format!("{}{}", SLACK_HOST, UPDATE_MESSAGE))
@@ -185,7 +183,7 @@ pub fn delete_message(
     channel: &str,
     token: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
+    let client = Client::new();
     let payload = json!({
         "ts": ts,
         "channel": channel,
@@ -227,7 +225,7 @@ pub fn get_user_details(
     username: &str,
     token: String,
 ) -> Result<UserProfile, Box<dyn std::error::Error>> {
-    let body = reqwest::get(&format!(
+    let body = reqwest::blocking::get(&format!(
         "{}{}?user={}&token={}",
         SLACK_HOST, USER_DETAILS, username, token
     ))?
@@ -306,7 +304,7 @@ pub fn send_config_dialog(
         }
     });
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
     client
         .post(&format!("{}{}", SLACK_HOST, POST_DIALOG))
         .json(&payload)
@@ -326,7 +324,7 @@ pub fn send_response(
         "response_type": "ephemeral"
     });
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
     client
         .post(response_url)
         .json(&payload)
@@ -342,7 +340,7 @@ pub fn get_token_with_code(code: String) -> Result<SlackOauthResponse, Box<dyn s
 
     let payload = [("code", code)];
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
     let body = client
         .post(&format!("{}{}", SLACK_HOST, OAUTH_ACCESS))
         .basic_auth(client_id, Some(client_secret))

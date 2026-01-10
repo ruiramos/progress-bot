@@ -8,7 +8,7 @@ use crate::{
 use crate::{EventDetails, SlackConfig, Standup, StandupState, User};
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use diesel::prelude::*;
-use rocket_contrib::json::JsonValue;
+use rocket::serde::json::serde_json::{json, Value as JsonValue};
 
 pub fn challenge(c: String) -> String {
     c
@@ -17,7 +17,7 @@ pub fn challenge(c: String) -> String {
 pub fn event(
     evt: EventDetails,
     team_id: &str,
-    conn: &diesel::PgConnection,
+    conn: &mut diesel::PgConnection,
 ) -> Option<(JsonValue, String)> {
     match evt.r#type.as_ref() {
         "message" => match evt.subtype.as_ref() {
@@ -31,7 +31,7 @@ pub fn event(
     }
 }
 
-pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (JsonValue, String) {
+pub fn react(evt: EventDetails, team_id: &str, conn: &mut diesel::PgConnection) -> (JsonValue, String) {
     let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
         Some(user) => user,
         None => create_user(&evt.user.as_ref().unwrap(), team_id, conn),
@@ -53,7 +53,7 @@ pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (
                     StandupState::Blocker => {
                         todays.add_content(msg, &evt);
                         if user.channel.is_some() {
-                            share_standup(&user, &todays, &conn);
+                            share_standup(&user, &todays, conn);
                         }
                     }
                     _ => todays.add_content(msg, &evt),
@@ -71,7 +71,7 @@ pub fn react(evt: EventDetails, team_id: &str, conn: &diesel::PgConnection) -> (
 
 pub fn react_message_edit(
     evt: EventDetails,
-    conn: &diesel::PgConnection,
+    conn: &mut diesel::PgConnection,
 ) -> Option<(JsonValue, String)> {
     let previous_message = evt.previous_message.unwrap();
     let new_message = evt.message.unwrap();
@@ -137,7 +137,7 @@ pub fn react_message_edit(
 pub fn react_notification(
     evt: EventDetails,
     team_id: &str,
-    conn: &diesel::PgConnection,
+    conn: &mut diesel::PgConnection,
 ) -> (JsonValue, String) {
     let msg = evt.text;
     let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
@@ -163,7 +163,7 @@ pub fn react_notification(
 pub fn react_app_home_open(
     evt: EventDetails,
     team_id: &str,
-    conn: &diesel::PgConnection,
+    conn: &mut diesel::PgConnection,
 ) -> Option<(JsonValue, String)> {
     let user = match get_user(&evt.user.as_ref().unwrap(), conn) {
         Some(user) => user,
@@ -189,7 +189,7 @@ pub fn react_app_home_open(
     }
 }
 
-pub fn share_standup(user: &User, standup: &Standup, conn: &diesel::PgConnection) {
+pub fn share_standup(user: &User, standup: &Standup, conn: &mut diesel::PgConnection) {
     let msg = ":newspaper: Here's the latest:";
     let prev = get_standup_before_provided(&user.username, standup, conn);
     let completed_last = get_standup_completed(prev);
@@ -241,7 +241,7 @@ fn get_standup_completed(prev: Option<Standup>) -> String {
 
     completed_last
 }
-fn update_standup_message_in_channel(user: &User, standup: &mut Standup, conn: &PgConnection) {
+fn update_standup_message_in_channel(user: &User, standup: &mut Standup, conn: &mut PgConnection) {
     let prev = get_standup_before_provided(&user.username, &standup, conn);
     let completed_last = get_standup_completed(prev);
 
@@ -256,7 +256,7 @@ fn update_standup_message_in_channel(user: &User, standup: &mut Standup, conn: &
     standup.message_ts = Some(ack.unwrap().ts);
 }
 
-pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
+pub fn config(config: &SlackConfig, conn: &mut diesel::PgConnection) -> String {
     let mut user = match get_user(&config.user.id, conn) {
         Some(user) => user,
         None => create_user(&config.user.id, &config.team.id, conn),
@@ -274,10 +274,10 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
 
     if let Some(reminder) = reminder {
         let now = Utc::now();
-        let d = NaiveDate::from_ymd(now.year(), now.month(), now.day());
+        let d = NaiveDate::from_ymd_opt(now.year(), now.month(), now.day()).unwrap();
         // @TODO timezones
         let h: u32 = reminder.parse().unwrap();
-        let t = NaiveTime::from_hms_milli(h, 0, 0, 0);
+        let t = NaiveTime::from_hms_milli_opt(h, 0, 0, 0).unwrap();
         let reminder_date = NaiveDateTime::new(d, t);
         user.reminder = Some(reminder_date);
     } else {
@@ -299,7 +299,7 @@ pub fn config(config: &SlackConfig, conn: &diesel::PgConnection) -> String {
     copy
 }
 
-pub fn remove_todays(user_id: &str, team_id: &str, conn: &diesel::PgConnection) -> String {
+pub fn remove_todays(user_id: &str, team_id: &str, conn: &mut diesel::PgConnection) -> String {
     let todays = get_todays_standup_for_user(user_id, conn);
 
     if todays.is_none() {
@@ -323,7 +323,7 @@ pub fn remove_todays(user_id: &str, team_id: &str, conn: &diesel::PgConnection) 
 pub fn get_todays_tasks(
     user_id: &str,
     team_id: &str,
-    conn: &diesel::PgConnection,
+    conn: &mut diesel::PgConnection,
 ) -> (String, Option<Vec<Task>>) {
     let user = match get_user(&user_id, conn) {
         Some(user) => user,
@@ -409,7 +409,7 @@ pub fn print_tasks(tasks: Vec<Task>) -> String {
         .join("\n")
 }
 
-pub fn set_task_done(task: i32, standup_id: i32, conn: &diesel::PgConnection) -> String {
+pub fn set_task_done(task: i32, standup_id: i32, conn: &mut diesel::PgConnection) -> String {
     let mut standup = get_standup_by_id(standup_id, conn);
     let mut done = standup.done.unwrap_or(Vec::new());
 
@@ -437,7 +437,7 @@ pub fn set_task_done(task: i32, standup_id: i32, conn: &diesel::PgConnection) ->
     }
 }
 
-pub fn set_todays_task_done(task: i32, user_id: &str, conn: &diesel::PgConnection) -> String {
+pub fn set_todays_task_done(task: i32, user_id: &str, conn: &mut diesel::PgConnection) -> String {
     let todays = get_todays_standup_for_user(user_id, conn);
 
     if todays.is_none() {
@@ -447,7 +447,7 @@ pub fn set_todays_task_done(task: i32, user_id: &str, conn: &diesel::PgConnectio
     set_task_done(task, todays.unwrap().id, conn)
 }
 
-pub fn set_task_not_done(task: i32, standup_id: i32, conn: &diesel::PgConnection) -> String {
+pub fn set_task_not_done(task: i32, standup_id: i32, conn: &mut diesel::PgConnection) -> String {
     let mut standup = get_standup_by_id(standup_id, conn);
 
     let done = standup.done.unwrap_or(Vec::new());
@@ -475,7 +475,7 @@ pub fn set_task_not_done(task: i32, standup_id: i32, conn: &diesel::PgConnection
     }
 }
 
-pub fn set_todays_task_not_done(task: i32, user_id: &str, conn: &diesel::PgConnection) -> String {
+pub fn set_todays_task_not_done(task: i32, user_id: &str, conn: &mut diesel::PgConnection) -> String {
     let todays = get_todays_standup_for_user(user_id, conn);
 
     if todays.is_none() {
@@ -488,7 +488,7 @@ pub fn set_todays_task_not_done(task: i32, user_id: &str, conn: &diesel::PgConne
 pub fn add_task_to_today(
     task: &str,
     user_id: &str,
-    conn: &diesel::PgConnection,
+    conn: &mut diesel::PgConnection,
 ) -> Result<String, String> {
     let todays = get_todays_standup_for_user(user_id, conn);
     let user = get_user(&user_id, conn);
@@ -508,7 +508,7 @@ pub fn add_task_to_today(
     }
 }
 
-pub fn get_standup_intro_copy(user: &User, conn: &diesel::PgConnection) -> JsonValue {
+pub fn get_standup_intro_copy(user: &User, conn: &mut diesel::PgConnection) -> JsonValue {
     let todays = get_todays_standup_for_user(&user.username, conn);
     match todays {
         None => {
