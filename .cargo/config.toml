@@ -1,0 +1,2 @@
+[build]
+rustflags = ["-L /opt/homebrew/opt/postgresql@18/lib"]
