@@ -15,7 +15,7 @@ on:
 
 env:
   GAR_LOCATION: europe-west2 # Update with your GAR region
-  GAR_REPOSITORY: progress-bot # e.g., my-docker-repo
+  GAR_REPOSITORY: eu # e.g., my-docker-repo
   IMAGE_NAME: progress-bot
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
 
