@@ -2,7 +2,7 @@
 # Optimized for size and security in Kubernetes deployments
 
 # Stage 1: Builder
-FROM rust:1.75-slim as builder
+FROM rust:1.86-slim as builder
 
 # Install build dependencies (PostgreSQL client libraries and build tools)
 RUN apt-get update && \
