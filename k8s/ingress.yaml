@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: progress-bot
+  labels:
+    app: progress-bot
+  annotations:
+    # Adjust annotations based on your ingress controller
+    # Example for nginx-ingress:
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx # Adjust based on your ingress controller
+  rules:
+    - host: bot.progress.bot
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: progress-bot
+                port:
+                  number: 80
+  # Optional: TLS configuration
+  # tls:
+  # - hosts:
+  #   - progress-bot.example.com
+  #   secretName: progress-bot-tls

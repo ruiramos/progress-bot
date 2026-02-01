@@ -1,0 +1,14 @@
+# Code owners for automatic review requests
+# Update with your GitHub username
+
+* @ruiramos
+
+# Require review for workflow changes
+/.github/workflows/ @ruiramos
+
+# Require review for Kubernetes manifests
+/k8s/ @ruiramos
+
+# Require review for Docker configuration
+/Dockerfile @ruiramos
+/.dockerignore @ruiramos

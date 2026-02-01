@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: progress-bot-reminders
+  labels:
+    app: progress-bot-reminders
+spec:
+  # Run every hour (adjust as needed)
+  schedule: "0 * * * *"
+  # Ensure only one job runs at a time
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: progress-bot-reminders
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: reminders
+            # Replace PLACEHOLDER with your actual values:
+            # - REGION: e.g., us-central1
+            # - PROJECT_ID: your GCP project ID
+            # - REPO_NAME: your GAR repository name
+            image: REGION-docker.pkg.dev/PROJECT_ID/PLACEHOLDER_GAR_REPO/progress-bot:latest
+            command: ["./reminders"]
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: progress-bot-secrets
+                  key: database-url
+            - name: CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: progress-bot-secrets
+                  key: client-id
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: progress-bot-secrets
+                  key: client-secret
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"

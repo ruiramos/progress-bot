@@ -1,2 +1,12 @@
 /target
 **/*.rs.bk
+
+# Environment files
+.env
+.env.*
+
+# Kubernetes secrets (never commit real secrets!)
+k8s/secrets.yaml
+
+# Docker
+.dockerignore

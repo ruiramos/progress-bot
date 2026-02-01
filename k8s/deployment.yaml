@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: progress-bot
+  labels:
+    app: progress-bot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: progress-bot
+  template:
+    metadata:
+      labels:
+        app: progress-bot
+    spec:
+      containers:
+        - name: progress-bot
+          image: europe-west2-docker.pkg.dev/vernal-mantra-665/progress-bot/progress-bot:latest
+          ports:
+            - containerPort: 8800
+              name: http
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: progress-bot-secrets
+                  key: database-url
+            - name: CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: progress-bot-secrets
+                  key: client-id
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: progress-bot-secrets
+                  key: client-secret
+            - name: PORT
+              value: "8800"
+            - name: ROCKET_ENV
+              value: "production"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8800
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8800
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      # # Optional: Use init container for migrations instead of running in main container
+      # initContainers:
+      # - name: migrations
+      #   image: REGION-docker.pkg.dev/PROJECT_ID/PLACEHOLDER_GAR_REPO/progress-bot:latest
+      #   command: ["diesel", "migration", "run"]
+      #   env:
+      #   - name: DATABASE_URL
+      #     valueFrom:
+      #       secretKeyRef:
+      #         name: progress-bot-secrets
+      #         key: database-url

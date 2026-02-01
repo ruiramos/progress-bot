@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: progress-bot
+  labels:
+    app: progress-bot
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8800
+    protocol: TCP
+    name: http
+  selector:
+    app: progress-bot
