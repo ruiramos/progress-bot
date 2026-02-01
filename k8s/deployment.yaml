@@ -5,7 +5,7 @@ metadata:
   labels:
     app: progress-bot
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: progress-bot
@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: progress-bot
-          image: europe-west2-docker.pkg.dev/vernal-mantra-665/progress-bot/progress-bot:latest
+          image: europe-west2-docker.pkg.dev/vernal-mantra-665/eu/progress-bot:latest
           ports:
             - containerPort: 8800
               name: http
@@ -51,7 +51,7 @@ spec:
             httpGet:
               path: /
               port: 8800
-            initialDelaySeconds: 30
+            initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3

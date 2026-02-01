@@ -1,7 +1,6 @@
 [development]
-address = "localhost"
+address = "0.0.0.0"
 port = 8800
 
 [development.databases]
 postgres = { url = "postgres://diesel:password@localhost:5433/diesel" }
-

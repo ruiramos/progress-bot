@@ -32,6 +32,9 @@ RUN cargo build --release
 # Stage 2: Runtime
 FROM debian:bookworm-slim
 
+ENV ROCKET_ADDRESS=0.0.0.0
+ENV ROCKET_PORT=8080
+
 # Install runtime dependencies (only PostgreSQL client libraries)
 RUN apt-get update && \
     apt-get install -y \
